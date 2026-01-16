@@ -5,6 +5,14 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Импор�
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Настройка CORS для разрешения запросов с фронтенда
+  app.enableCors({
+    origin: ['http://localhost:3001', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
+
   // Конфигурация Swagger
   const config = new DocumentBuilder()
     .setTitle('Geo Map API') // Название твоего проекта
