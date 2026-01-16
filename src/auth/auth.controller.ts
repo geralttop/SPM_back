@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service'; // Добавь этот импорт
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -8,6 +8,10 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { UserProfileDto } from '../users/dto/user-profile.dto';
+import { Roles } from './decorators/roles.decorator';
+import { RolesGuard } from './guards/roles.guard';
+import { UserRole } from 'src/users/user.entity';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -45,10 +49,45 @@ export class AuthController {
 
   @Post('verify-email')
   async verifyEmail(@Body() body: VerifyCodeDto) {
-    const isVerified = await this.usersService.verifyUser(body.email, body.code);
-    if (isVerified) {
-      return { message: 'Почта успешно подтверждена!' };
+    const user = await this.usersService.findByEmail(body.email);
+    
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
     }
+
+    // Проверка времени (5 минут)
+    if (user.codeCreatedAt) {
+      const now = new Date();
+      const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
+
+      if (diffInMinutes > 5) {
+        throw new BadRequestException('Срок действия кода истек (5 минут). Зарегистрируйтесь заново.');
+      }
+    }
+
+    // Проверка кода
+    if (user.confirmationCode === body.code && body.code !== null) {
+      // Подтверждаем почту
+      const isVerified = await this.usersService.verifyUser(body.email, body.code);
+      
+      if (isVerified) {
+        // Очищаем временные данные кода
+        user.confirmationCode = null;
+        user.codeCreatedAt = null;
+        await this.usersService.saveUser(user);
+
+        // Генерируем токены
+        const tokens = await this.authService.getTokens(user.id, user.email, user.role);
+        await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
+
+        return { 
+          message: 'Почта успешно подтверждена!',
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken
+        };
+      }
+    }
+    
     throw new UnauthorizedException('Неверный код подтверждения');
   }
 
@@ -60,26 +99,31 @@ export class AuthController {
       throw new UnauthorizedException('Пользователь не найден');
     }
 
-    // ПРОВЕРКА ВРЕМЕНИ (5 минут)
+    // 1. ПРОВЕРКА ВРЕМЕНИ (5 минут)
     if (user.codeCreatedAt) {
       const now = new Date();
-      const diffInMinutes = (now.getTime() - user.codeCreatedAt.getTime()) / 1000 / 60;
+      const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
 
       if (diffInMinutes > 5) {
         throw new BadRequestException('Срок действия кода истек (5 минут). Запросите новый.');
       }
     }
 
-    // Дальше твоя обычная проверка кода
+    // 2. ПРОВЕРКА КОДА
     if (user.confirmationCode === body.code && body.code !== null) {
+      // Очищаем временные данные кода
       user.confirmationCode = null;
-      user.codeCreatedAt = null; // Очищаем и время тоже
+      user.codeCreatedAt = null;
       await this.usersService.saveUser(user);
 
-      const payload = { email: user.email, sub: user.id };
-      return {
-        access_token: this.jwtService.sign(payload),
-      };
+      // 3. ГЕНЕРАЦИЯ ДВУХ ТОКЕНОВ (Вызываем метод из AuthService)
+      const tokens = await this.authService.getTokens(user.id, user.email, user.role);
+      
+      // 4. СОХРАНЕНИЕ ХЕША REFRESH ТОКЕНА В БАЗУ
+      await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
+
+      // Возвращаем оба токена клиенту
+      return tokens;
     }
 
     throw new UnauthorizedException('Неверный код подтверждения');
@@ -95,11 +139,26 @@ export class AuthController {
   }
 
   // 2. Удаление по ID (например, для админки)
-  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard) // Добавляем RolesGuard вторым номером
+  @Roles('admin') // Указываем, что только админ может сюда зайти
   @Delete('user/:id')
   async removeUser(@Param('id') id: string) {
-    await this.usersService.remove(+id); // + превращает строку в число
-    return { message: `Пользователь с ID ${id} удален` };
+    await this.usersService.remove(+id);
+    return { message: `Пользователь с ID ${id} удален администратором` };
   }
 
+  @UseGuards(JwtAuthGuard) // Тут нужен отдельный гвард или просто проверка токена в теле
+  @Post('refresh')
+  async refresh(@Request() req, @Body('refreshToken') refreshToken: string) {
+    const userId = req.user.userId;
+    return this.authService.refreshTokens(userId, refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('update-profile')
+  async updateProfile(@Request() req, @Body() body: UpdateProfileDto) {
+    // Используем твой универсальный метод update
+    return this.usersService.update(req.user.userId, body);
+  }
 }

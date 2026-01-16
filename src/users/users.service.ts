@@ -67,4 +67,17 @@ export class UsersService {
   async remove(id: number): Promise<void> {
     await this.usersRepository.delete(id);
   }
+
+  // Метод для частичного обновления данных пользователя
+  async update(id: number, attrs: Partial<User>): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException(`Пользователь с ID ${id} не найден`);
+    }
+    
+    // Копируем новые атрибуты (например, hashedRefreshToken) в объект пользователя
+    Object.assign(user, attrs);
+    
+    return this.usersRepository.save(user);
+  }
 }

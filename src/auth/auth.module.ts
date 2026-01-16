@@ -11,8 +11,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     UsersModule, // Импортируем, чтобы AuthService мог использовать UsersService
     PassportModule,
     JwtModule.register({
-      secret: 'MY_SUPER_SECRET_KEY_2026', // Этот ключ используется для подписи токенов
-      signOptions: { expiresIn: '24h' },
+      secret: 'ACCESS_SECRET', // Должен совпадать с ключом в JWT стратегии
+      signOptions: { expiresIn: '15m' }, // Срок должен совпадать с access токеном
     }),
   ],
   providers: [AuthService, JwtStrategy],

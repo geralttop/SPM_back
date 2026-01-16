@@ -9,13 +9,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       // Извлекаем токен из заголовка Authorization: Bearer <token>
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: 'MY_SUPER_SECRET_KEY_2026', // Должен совпадать с ключом в AuthModule
+      secretOrKey: 'ACCESS_SECRET', // Должен совпадать с ключом подписи access токена
     });
   }
 
   // Сюда мы попадаем, если токен валиден
   async validate(payload: any) {
     // То, что мы вернем здесь, будет лежать в req.user
-    return { userId: payload.sub, email: payload.email };
+    return { 
+      sub: payload.sub, 
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role // Убедись, что роль попадает в req.user
+    };
   }
 }
