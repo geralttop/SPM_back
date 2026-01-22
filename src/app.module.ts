@@ -4,6 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerModule } from '@nestjs-modules/mailer'; // Не забудь импорт
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { PointsModule } from './points/points.module';
+import { CategoriesModule } from './categories/categories.module';
+import { ContainersModule } from './containers/containers.module';
 
 @Module({
   imports: [
@@ -37,6 +40,9 @@ import { UsersModule } from './users/users.module';
 
     AuthModule,
     UsersModule,
+    PointsModule,
+    CategoriesModule,
+    ContainersModule,
   ],
 })
 export class AppModule implements NestModule {
