@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerModule } from '@nestjs-modules/mailer'; // Не забудь импорт
@@ -10,6 +11,10 @@ import { ContainersModule } from './containers/containers.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Делаем ConfigModule доступным глобально
+      envFilePath: '.env', // Путь к .env файлу
+    }),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: 'localhost',

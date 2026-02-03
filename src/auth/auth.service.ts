@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, UnauthorizedException, Logger, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { MailerService } from '@nestjs-modules/mailer'; // Импортируем почту
@@ -14,6 +15,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private readonly mailerService: MailerService,
+    private configService: ConfigService,
   ) {}
 
   // Вспомогательный метод для проверки "1 минуты" и "5 минут"
@@ -92,14 +94,21 @@ export class AuthService {
   async getTokens(userId: number, email: string, role: string) {
     const payload = { sub: userId, email, role };
     
+    const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+    
+    if (!accessSecret || !refreshSecret) {
+      throw new Error('JWT secrets are not defined in environment variables');
+    }
+    
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         expiresIn: '15m', // Короткий срок
-        secret: 'ACCESS_SECRET', // В идеале брать из .env
+        secret: accessSecret,
       }),
       this.jwtService.signAsync(payload, {
         expiresIn: '7d', // Длинный срок
-        secret: 'REFRESH_SECRET',
+        secret: refreshSecret,
       }),
     ]);
 

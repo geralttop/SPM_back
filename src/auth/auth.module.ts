@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
@@ -10,9 +11,14 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   imports: [
     UsersModule, // Импортируем, чтобы AuthService мог использовать UsersService
     PassportModule,
-    JwtModule.register({
-      secret: 'ACCESS_SECRET', // Должен совпадать с ключом в JWT стратегии
-      signOptions: { expiresIn: '15m' }, // Срок должен совпадать с access токеном
+    ConfigModule, // Добавляем ConfigModule для работы с .env
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_ACCESS_SECRET'),
+        signOptions: { expiresIn: '15m' },
+      }),
+      inject: [ConfigService],
     }),
   ],
   providers: [AuthService, JwtStrategy],
