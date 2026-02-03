@@ -1,8 +1,7 @@
-import { IsNumber, IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsNumber, IsString, IsUUID, IsOptional } from 'class-validator';
 
 export class CreatePointDto {
   @IsString()
-  @MaxLength(255)
   name: string;
 
   @IsOptional()
@@ -10,8 +9,14 @@ export class CreatePointDto {
   description?: string;
 
   @IsNumber()
-  lng: number; // Долгота
+  lng: number;
 
   @IsNumber()
-  lat: number; // Широта
+  lat: number;
+
+  @IsUUID() // Контейнеры у нас на UUID
+  containerId: string;
+
+  @IsNumber() // Категории на обычном id (autoincrement)
+  categoryId: number;
 }

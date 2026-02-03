@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { PointEntity } from '../../points/entities/point.entity';
+import { User } from 'src/users/user.entity';
 
 @Entity('categories')
 export class Category {
@@ -17,4 +18,7 @@ export class Category {
 
   @OneToMany(() => PointEntity, (point) => point.category)
   points: PointEntity[];
+
+  @ManyToOne(() => User, (user) => user.id, { nullable: true })
+  author: User; // Если null — категория общая (системная), если есть ID — приватная
 }

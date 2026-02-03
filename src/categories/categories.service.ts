@@ -1,26 +1,72 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
+import { Category } from './entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { User } from 'src/users/user.entity';
 
 @Injectable()
 export class CategoriesService {
-  create(createCategoryDto: CreateCategoryDto) {
-    return 'This action adds a new category';
+  constructor(
+    @InjectRepository(Category)
+    private categoryRepository: Repository<Category>,
+  ) {}
+
+  async create(createCategoryDto: CreateCategoryDto, userId: number) {
+  // Создаем объект строго из DTO и привязываем ID пользователя
+    const category = this.categoryRepository.create({
+      name: createCategoryDto.name,
+      icon: createCategoryDto.icon,
+      color: createCategoryDto.color,
+      author: { id: userId } as any, // Передаем только ID как объект
+    });
+
+    return await this.categoryRepository.save(category);
   }
 
-  findAll() {
-    return `This action returns all categories`;
+  async update(id: number, updateCategoryDto: UpdateCategoryDto, userId: number) {
+    const category = await this.categoryRepository.findOne({ 
+      where: { id, author: { id: userId } } // Ищем только среди тех, где автор — текущий юзер
+    });
+
+    if (!category) {
+      throw new NotFoundException('Категория не найдена или это системная категория, которую нельзя менять');
+    }
+
+    // Проверка на уникальность имени среди своих категорий
+    if (updateCategoryDto.name) {
+      const existing = await this.categoryRepository.findOne({ 
+        where: { name: updateCategoryDto.name, author: { id: userId } } 
+      });
+      if (existing && existing.id !== id) {
+        throw new BadRequestException('У вас уже есть категория с таким названием');
+      }
+    }
+
+    Object.assign(category, updateCategoryDto);
+    return await this.categoryRepository.save(category);
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} category`;
+  async remove(id: number, userId: number) {
+    const category = await this.categoryRepository.findOne({ 
+      where: { id, author: { id: userId } } 
+    });
+
+    if (!category) {
+      throw new NotFoundException('Вы не можете удалить эту категорию');
+    }
+
+    return await this.categoryRepository.remove(category);
   }
 
-  update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return `This action updates a #${id} category`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} category`;
+  async findAll(userId: number) {
+    return await this.categoryRepository.find({
+      where: [
+        { author: { id: userId } }, // Личные категории пользователя
+        { author: IsNull() }        // + Системные категории (если они нужны)
+      ],
+      order: { name: 'ASC' }
+    });
   }
 }
