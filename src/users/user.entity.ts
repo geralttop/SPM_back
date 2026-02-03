@@ -37,4 +37,17 @@ export class User {
   // В user.entity.ts добавь:
   @Column({ type: 'text', nullable: true })
   bio: string | null;
+
+  // Поля для защиты от brute-force атак
+  @Column({ type: 'int', default: 0 })
+  failedCodeAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  codeBlockedUntil: Date | null;
+
+  @Column({ type: 'int', default: 0 })
+  failedLoginAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  loginBlockedUntil: Date | null;
 }

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { MailerService } from '@nestjs-modules/mailer'; // Импортируем почту
+import { BruteForceProtectionService } from './services/brute-force-protection.service';
 import * as bcrypt from 'bcrypt';
 import { BadRequestException } from '@nestjs/common';
 import { User } from 'src/users/user.entity';
@@ -16,6 +17,7 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly mailerService: MailerService,
     private configService: ConfigService,
+    private bruteForceProtection: BruteForceProtectionService,
   ) {}
 
   // Вспомогательный метод для проверки "1 минуты" и "5 минут"
@@ -69,26 +71,42 @@ export class AuthService {
     this.logger.log(`Попытка входа: ${email}`);    
     const user = await this.usersService.findByEmail(email);
 
-    if (user && (await bcrypt.compare(pass, user.password))) {
-      this.logger.debug(`Генерация 2FA кода для ${email}`);
-      // ВОТ ЗДЕСЬ ПРОВЕРЯЕМ ЛИМИТ 1 МИНУТЫ
-      this.checkCodeLimits(user);
-
-      const loginCode = Math.floor(100000 + Math.random() * 900000).toString();
-      user.confirmationCode = loginCode;
-      user.codeCreatedAt = new Date();
-      await this.usersService.saveUser(user);
-
-      await this.sendMail(user.email, loginCode, user.username);
-
-      this.logger.log(`Код 2FA успешно отправлен пользователю ${email}`);
-      return { 
-        message: 'Код подтверждения отправлен на почту',
-        email: user.email 
-      };
+    if (!user) {
+      this.logger.error(`Неудачная попытка входа для несуществующего email: ${email}`);
+      throw new UnauthorizedException('Неверный логин или пароль');
     }
-    this.logger.error(`Неудачная попытка входа для email: ${email}`); // Лог ошибки
-    throw new UnauthorizedException('Неверный логин или пароль');
+
+    // Проверяем блокировку входа
+    await this.bruteForceProtection.checkLoginBlocking(user);
+
+    const isPasswordValid = await bcrypt.compare(pass, user.password);
+    
+    if (!isPasswordValid) {
+      // Регистрируем неудачную попытку входа
+      await this.bruteForceProtection.recordFailedLoginAttempt(user);
+      this.logger.error(`Неудачная попытка входа для email: ${email}`);
+      throw new UnauthorizedException('Неверный логин или пароль');
+    }
+
+    // Сбрасываем счетчик неудачных попыток входа при успешном входе
+    await this.bruteForceProtection.resetFailedAttempts(user, 'login');
+
+    this.logger.debug(`Генерация 2FA кода для ${email}`);
+    // ВОТ ЗДЕСЬ ПРОВЕРЯЕМ ЛИМИТ 1 МИНУТЫ
+    this.checkCodeLimits(user);
+
+    const loginCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.confirmationCode = loginCode;
+    user.codeCreatedAt = new Date();
+    await this.usersService.saveUser(user);
+
+    await this.sendMail(user.email, loginCode, user.username);
+
+    this.logger.log(`Код 2FA успешно отправлен пользователю ${email}`);
+    return { 
+      message: 'Код подтверждения отправлен на почту',
+      email: user.email 
+    };
   }
 
   // Общий метод для отправки почты (чтобы не дублировать код)
@@ -98,6 +116,44 @@ export class AuthService {
       subject: 'Код подтверждения',
       html: `<h1>Ваш код: ${code}</h1>`,
     });
+  }
+
+  /**
+   * Проверяет код подтверждения с защитой от brute-force
+   */
+  async verifyCode(email: string, code: string): Promise<{ user: User; isValid: boolean }> {
+    const user = await this.usersService.findByEmail(email);
+    
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    // Проверяем блокировку кодов
+    await this.bruteForceProtection.checkCodeBlocking(user);
+
+    // Проверка времени (5 минут)
+    if (user.codeCreatedAt) {
+      const now = new Date();
+      const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
+
+      if (diffInMinutes > 5) {
+        throw new BadRequestException('Срок действия кода истек (5 минут). Запросите новый код.');
+      }
+    }
+
+    // Проверка кода
+    const isCodeValid = user.confirmationCode === code && code !== null;
+    
+    if (!isCodeValid) {
+      // Регистрируем неудачную попытку
+      await this.bruteForceProtection.recordFailedCodeAttempt(user);
+      return { user, isValid: false };
+    }
+
+    // Сбрасываем счетчики при успешной проверке
+    await this.bruteForceProtection.resetFailedAttempts(user, 'code');
+    
+    return { user, isValid: true };
   }
 
   async getTokens(userId: number, email: string, role: string) {
