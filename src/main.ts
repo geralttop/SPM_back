@@ -1,9 +1,18 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Импортируем
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Подключаем глобальную валидацию
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true, // Удаляет свойства, которых нет в DTO
+    forbidNonWhitelisted: true, // Выбрасывает ошибку при лишних свойствах
+    transform: true, // Автоматически преобразует типы
+    disableErrorMessages: false, // Показывает подробные ошибки валидации
+  }));
 
   // Настройка CORS для разрешения запросов с фронтенда
   app.enableCors({

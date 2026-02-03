@@ -52,6 +52,13 @@ export class UsersService {
     });
   }
 
+  // Метод для поиска по username (для проверки уникальности)
+  async findByUsername(username: string): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { username },
+    });
+  }
+
   // Метод для поиска по ID (пригодится для профиля)
   async findById(id: number): Promise<User | null> {
     return this.usersRepository.findOne({

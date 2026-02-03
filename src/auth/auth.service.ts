@@ -36,10 +36,19 @@ export class AuthService {
 
   async register(email: string, pass: string, username: string) {
     this.logger.log(`Попытка регистрации нового пользователя: ${email}`); // Лог старта
-    const candidate = await this.usersService.findByEmail(email);
-    if (candidate) {
+    
+    // Проверяем уникальность email
+    const candidateByEmail = await this.usersService.findByEmail(email);
+    if (candidateByEmail) {
       this.logger.warn(`Ошибка регистрации: email ${email} уже занят`); // Лог предупреждения
       throw new ConflictException('Пользователь с таким email уже существует');
+    }
+
+    // Проверяем уникальность username
+    const candidateByUsername = await this.usersService.findByUsername(username);
+    if (candidateByUsername) {
+      this.logger.warn(`Ошибка регистрации: username ${username} уже занят`);
+      throw new ConflictException('Пользователь с таким именем уже существует');
     }
 
     const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();

@@ -7,6 +7,7 @@ import { ApiBearerAuth, ApiTags, ApiOkResponse } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UserProfileDto } from '../users/dto/user-profile.dto';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
@@ -150,9 +151,9 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard) // Тут нужен отдельный гвард или просто проверка токена в теле
   @Post('refresh')
-  async refresh(@Request() req, @Body('refreshToken') refreshToken: string) {
+  async refresh(@Request() req, @Body() refreshTokenDto: RefreshTokenDto) {
     const userId = req.user.userId;
-    return this.authService.refreshTokens(userId, refreshToken);
+    return this.authService.refreshTokens(userId, refreshTokenDto.refreshToken);
   }
 
   @UseGuards(JwtAuthGuard)
