@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, OneToMany } from 'typeorm';
 import * as GeoJSON from 'geojson';
 import { Category } from 'src/categories/entities/category.entity';
 import { Container } from 'src/containers/entities/container.entity';
+import { Favorite } from './favorite.entity';
 
 @Entity('points')
 export class PointEntity {
@@ -34,4 +35,7 @@ export class PointEntity {
 
   @ManyToOne(() => Container, (container) => container.points, { onDelete: 'CASCADE' })
   container: Container;
+
+  @OneToMany(() => Favorite, (favorite) => favorite.point)
+  favorites: Favorite[];
 }

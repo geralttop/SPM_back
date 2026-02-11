@@ -1,4 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Subscription } from './entities/subscription.entity';
+import { Favorite } from '../points/entities/favorite.entity';
 
 export type UserRole = 'user' | 'admin';
 @Entity('users')
@@ -50,4 +52,13 @@ export class User {
 
   @Column({ type: 'timestamp', nullable: true })
   loginBlockedUntil: Date | null;
+
+  @OneToMany(() => Subscription, (subscription) => subscription.follower)
+  subscriptions: Subscription[];
+
+  @OneToMany(() => Subscription, (subscription) => subscription.following)
+  subscribers: Subscription[];
+
+  @OneToMany(() => Favorite, (favorite) => favorite.user)
+  favorites: Favorite[];
 }

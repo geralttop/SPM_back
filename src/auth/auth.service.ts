@@ -156,8 +156,8 @@ export class AuthService {
     return { user, isValid: true };
   }
 
-  async getTokens(userId: number, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  async getTokens(userId: number, email: string, role: string, username?: string) {
+    const payload = { sub: userId, email, role, username };
     
     const accessSecret = this.configService.get<string>('JWT_ACCESS_SECRET');
     const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
@@ -194,7 +194,7 @@ export class AuthService {
     const refreshTokenMatches = await bcrypt.compare(refreshToken, user.hashedRefreshToken);
     if (!refreshTokenMatches) throw new ForbiddenException('Access Denied');
 
-    const tokens = await this.getTokens(user.id, user.email, user.role);
+    const tokens = await this.getTokens(user.id, user.email, user.role, user.username);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
     
     return tokens;

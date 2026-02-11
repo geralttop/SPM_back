@@ -74,7 +74,7 @@ export class AuthController {
       await this.usersService.saveUser(user);
 
       // Генерируем токены
-      const tokens = await this.authService.getTokens(user.id, user.email, user.role);
+      const tokens = await this.authService.getTokens(user.id, user.email, user.role, user.username);
       await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
 
       // Устанавливаем refresh token в httpOnly cookie
@@ -106,7 +106,7 @@ export class AuthController {
     await this.usersService.saveUser(user);
 
     // 3. ГЕНЕРАЦИЯ ДВУХ ТОКЕНОВ (Вызываем метод из AuthService)
-    const tokens = await this.authService.getTokens(user.id, user.email, user.role);
+    const tokens = await this.authService.getTokens(user.id, user.email, user.role, user.username);
     
     // 4. СОХРАНЕНИЕ ХЕША REFRESH ТОКЕНА В БАЗУ
     await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
