@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service'; // Добавь этот импорт
@@ -14,6 +15,7 @@ import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
 import { UserRole } from 'src/users/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CookieService } from './services/cookie.service';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -23,6 +25,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService, // 2. Добавьте это поле сюда
+    private readonly cookieService: CookieService,
   ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 попыток регистрации в минуту
@@ -54,7 +57,7 @@ export class AuthController {
 
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения в минуту - КРИТИЧНО!
   @Post('verify-email')
-  async verifyEmail(@Body() body: VerifyCodeDto) {
+  async verifyEmail(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
     const { user, isValid } = await this.authService.verifyCode(body.email, body.code);
     
     if (!isValid) {
@@ -74,10 +77,14 @@ export class AuthController {
       const tokens = await this.authService.getTokens(user.id, user.email, user.role);
       await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
 
+      // Устанавливаем refresh token в httpOnly cookie
+      this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+
+      // Возвращаем только access token в теле ответа
       return { 
         message: 'Почта успешно подтверждена!',
         accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken
+        // refreshToken больше не отправляется в теле - он в cookie
       };
     }
     
@@ -86,7 +93,7 @@ export class AuthController {
 
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения входа в минуту - КРИТИЧНО!
   @Post('verify-login')
-  async verifyLogin(@Body() body: VerifyCodeDto) {
+  async verifyLogin(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
     const { user, isValid } = await this.authService.verifyCode(body.email, body.code);
 
     if (!isValid) {
@@ -104,8 +111,14 @@ export class AuthController {
     // 4. СОХРАНЕНИЕ ХЕША REFRESH ТОКЕНА В БАЗУ
     await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
 
-    // Возвращаем оба токена клиенту
-    return tokens;
+    // Устанавливаем refresh token в httpOnly cookie
+    this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+
+    // Возвращаем только access token
+    return {
+      accessToken: tokens.accessToken,
+      message: 'Вход выполнен успешно'
+    };
   }
 
   @Throttle({ default: { limit: 2, ttl: 300000 } }) // 2 удаления аккаунта за 5 минут
@@ -130,11 +143,28 @@ export class AuthController {
   }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 обновлений токена в минуту
-  @UseGuards(JwtAuthGuard) // Тут нужен отдельный гвард или просто проверка токена в теле
+  @UseGuards(JwtAuthGuard)
   @Post('refresh')
-  async refresh(@Request() req, @Body() refreshTokenDto: RefreshTokenDto) {
+  async refresh(@Request() req, @Res({ passthrough: true }) res: Response) {
     const userId = req.user.userId;
-    return this.authService.refreshTokens(userId, refreshTokenDto.refreshToken);
+    
+    // Получаем refresh token из cookie (приоритет) или из body (для обратной совместимости)
+    const refreshToken = this.cookieService.getRefreshTokenFromCookie(req) || req.body.refreshToken;
+    
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token не найден');
+    }
+
+    const tokens = await this.authService.refreshTokens(userId, refreshToken);
+    
+    // Устанавливаем новый refresh token в cookie
+    this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+
+    // Возвращаем только access token
+    return {
+      accessToken: tokens.accessToken,
+      message: 'Токен обновлен успешно'
+    };
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 обновлений профиля в минуту
@@ -143,5 +173,20 @@ export class AuthController {
   async updateProfile(@Request() req, @Body() body: UpdateProfileDto) {
     // Используем твой универсальный метод update
     return this.usersService.update(req.user.userId, body);
+  }
+
+  @SkipThrottle() // Logout не нуждается в жестком ограничении
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(@Request() req, @Res({ passthrough: true }) res: Response) {
+    const userId = req.user.userId;
+    
+    // Удаляем refresh token из БД
+    await this.usersService.update(userId, { hashedRefreshToken: null });
+    
+    // Очищаем cookies
+    this.cookieService.clearTokenCookies(res);
+    
+    return { message: 'Выход выполнен успешно' };
   }
 }

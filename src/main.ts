@@ -1,10 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Импортируем
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Подключаем cookie-parser для работы с cookies
+  app.use(cookieParser());
 
   // Подключаем глобальную валидацию
   app.useGlobalPipes(new ValidationPipe({
@@ -17,7 +21,7 @@ async function bootstrap() {
   // Настройка CORS для разрешения запросов с фронтенда
   app.enableCors({
     origin: ['http://localhost:3001', 'http://localhost:3000'],
-    credentials: true,
+    credentials: true, // ВАЖНО: разрешаем отправку cookies
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });

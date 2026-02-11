@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { BruteForceProtectionService } from './services/brute-force-protection.service';
+import { CookieService } from './services/cookie.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { BruteForceProtectionService } from './services/brute-force-protection.s
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy, BruteForceProtectionService],
+  providers: [AuthService, JwtStrategy, BruteForceProtectionService, CookieService],
   controllers: [AuthController],
 })
 export class AuthModule {}

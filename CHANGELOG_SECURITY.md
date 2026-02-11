@@ -318,3 +318,245 @@ loginBlockedUntil: Date | null;    // Время окончания блокир
 5. 🔄 Переместить токены в httpOnly cookies
 6. 🔄 Добавить HTTPS принуждение
 7. 🔄 Добавить CSP headers
+
+---
+
+# 🔐 Исправление критической уязвимости: Небезопасное хранение токенов
+
+## ✅ Что было исправлено
+
+### Проблема
+Токены хранились в localStorage на фронтенде:
+- Уязвимы для XSS атак
+- Доступны для любого JavaScript кода
+- Могут быть украдены вредоносными скриптами
+- Нет защиты от межсайтового скриптинга
+
+### Решение
+1. **Установлен cookie-parser** для работы с cookies
+2. **Создан CookieService** для управления httpOnly cookies
+3. **Refresh токены перемещены в httpOnly cookies**
+4. **Access токены отправляются в теле ответа** (для Authorization header)
+5. **Добавлен endpoint /auth/logout** для очистки cookies
+6. **Настроены secure cookies** для продакшена
+
+## 📁 Измененные файлы
+
+### Новые файлы:
+- `SPM_backend/src/auth/services/cookie.service.ts` - сервис управления cookies
+
+### Измененные файлы:
+- `SPM_backend/src/main.ts` - подключен cookie-parser, обновлен CORS
+- `SPM_backend/src/auth/auth.module.ts` - добавлен CookieService
+- `SPM_backend/src/auth/auth.controller.ts` - обновлены endpoints для работы с cookies
+- `SPM_backend/package.json` - добавлены cookie-parser и @types/cookie-parser
+
+## 🔧 Настройки Cookies
+
+### Refresh Token Cookie:
+```typescript
+{
+  httpOnly: true,        // Недоступен для JavaScript
+  secure: true,          // Только HTTPS (в продакшене)
+  sameSite: 'strict',    // Защита от CSRF
+  maxAge: 7 дней,        // Время жизни
+  path: '/'              // Доступен для всех путей
+}
+```
+
+### Access Token:
+- **НЕ хранится в cookie**
+- Отправляется в теле ответа
+- Клиент использует в Authorization header
+- Хранится в памяти приложения (не в localStorage)
+
+## 🔄 Изменения в API
+
+### Endpoints с cookies:
+
+#### POST /auth/verify-email
+**Было:**
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "..."
+}
+```
+
+**Стало:**
+```json
+{
+  "message": "Почта успешно подтверждена!",
+  "accessToken": "..."
+}
++ Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+```
+
+#### POST /auth/verify-login
+**Было:**
+```json
+{
+  "accessToken": "...",
+  "refreshToken": "..."
+}
+```
+
+**Стало:**
+```json
+{
+  "message": "Вход выполнен успешно",
+  "accessToken": "..."
+}
++ Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+```
+
+#### POST /auth/refresh
+**Было:**
+```json
+// Body: { "refreshToken": "..." }
+// Response: { "accessToken": "...", "refreshToken": "..." }
+```
+
+**Стало:**
+```json
+// Body: {} (токен берется из cookie)
+// Response: { "message": "Токен обновлен успешно", "accessToken": "..." }
++ Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+```
+
+#### POST /auth/logout (НОВЫЙ)
+```json
+// Response: { "message": "Выход выполнен успешно" }
++ Set-Cookie: refreshToken=; Max-Age=0
++ Set-Cookie: accessToken=; Max-Age=0
+```
+
+## 🛡️ Безопасность
+
+### Что теперь защищено:
+- ✅ XSS атаки не могут украсть refresh token (httpOnly)
+- ✅ CSRF атаки заблокированы (sameSite: strict)
+- ✅ Man-in-the-middle атаки затруднены (secure в продакшене)
+- ✅ Refresh token недоступен для JavaScript
+- ✅ Автоматическая очистка при logout
+
+### Уровни защиты:
+
+**httpOnly:**
+- Cookie недоступен через `document.cookie`
+- Защита от XSS атак
+- Только сервер может читать/изменять
+
+**secure:**
+- Cookie передается только по HTTPS
+- Защита от перехвата в открытых сетях
+- Автоматически включается в продакшене
+
+**sameSite: strict:**
+- Cookie не отправляется при cross-site запросах
+- Защита от CSRF атак
+- Максимальный уровень защиты
+
+## 📱 Изменения для фронтенда
+
+### Что нужно изменить:
+
+1. **Удалить сохранение refresh token в localStorage:**
+```typescript
+// УДАЛИТЬ:
+localStorage.setItem('refreshToken', refreshToken);
+
+// Refresh token теперь автоматически в cookie
+```
+
+2. **Обновить API клиент:**
+```typescript
+// Добавить credentials: 'include' для отправки cookies
+fetch('/auth/verify-login', {
+  method: 'POST',
+  credentials: 'include', // ВАЖНО!
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, code })
+})
+```
+
+3. **Обновить refresh логику:**
+```typescript
+// БЫЛО:
+const refreshToken = localStorage.getItem('refreshToken');
+fetch('/auth/refresh', {
+  body: JSON.stringify({ refreshToken })
+})
+
+// СТАЛО:
+fetch('/auth/refresh', {
+  method: 'POST',
+  credentials: 'include', // Токен автоматически из cookie
+  headers: { 'Authorization': `Bearer ${accessToken}` }
+})
+```
+
+4. **Добавить logout:**
+```typescript
+async function logout() {
+  await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Authorization': `Bearer ${accessToken}` }
+  });
+  
+  // Очистить access token из памяти
+  setAccessToken(null);
+}
+```
+
+## 🧪 Тестирование
+
+### Проверка cookies:
+```bash
+# Регистрация и получение кода
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"TestPass123!","username":"testuser"}' \
+  -c cookies.txt
+
+# Подтверждение с сохранением cookies
+curl -X POST http://localhost:3000/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","code":"123456"}' \
+  -c cookies.txt -b cookies.txt
+
+# Проверка файла cookies.txt - должен содержать refreshToken
+cat cookies.txt
+```
+
+### Проверка refresh:
+```bash
+# Обновление токена (refresh token из cookie)
+curl -X POST http://localhost:3000/auth/refresh \
+  -H "Authorization: Bearer <access_token>" \
+  -b cookies.txt -c cookies.txt
+```
+
+### Проверка logout:
+```bash
+# Выход с очисткой cookies
+curl -X POST http://localhost:3000/auth/logout \
+  -H "Authorization: Bearer <access_token>" \
+  -b cookies.txt -c cookies.txt
+
+# Проверка - cookies должны быть удалены
+cat cookies.txt
+```
+
+## 📋 Следующие шаги
+
+Рекомендуется исправить остальные проблемы безопасности:
+1. ✅ ~~Hardcoded секреты~~ - ИСПРАВЛЕНО
+2. ✅ ~~Отсутствие валидации~~ - ИСПРАВЛЕНО  
+3. ✅ ~~Rate limiting~~ - ИСПРАВЛЕНО
+4. ✅ ~~Brute-force защита~~ - ИСПРАВЛЕНО
+5. ✅ ~~Небезопасное хранение токенов~~ - ИСПРАВЛЕНО
+6. 🔄 Обновить фронтенд для работы с cookies
+7. 🔄 Добавить HTTPS принуждение
+8. 🔄 Добавить CSP headers
