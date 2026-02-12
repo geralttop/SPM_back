@@ -10,6 +10,9 @@ import { UsersModule } from './users/users.module';
 import { PointsModule } from './points/points.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ContainersModule } from './containers/containers.module';
+import { SeedService } from './common/services/seed.service';
+import { Category } from './categories/entities/category.entity';
+import { Container } from './containers/entities/container.entity';
 
 @Module({
   imports: [
@@ -70,12 +73,16 @@ import { ContainersModule } from './containers/containers.module';
     PointsModule,
     CategoriesModule,
     ContainersModule,
+    
+    // Добавляем TypeOrmModule для SeedService
+    TypeOrmModule.forFeature([Category, Container]),
   ],
   providers: [
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // Применяем rate limiting глобально
     },
+    SeedService, // Добавляем SeedService
   ],
 })
 export class AppModule implements NestModule {

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res, Query, ParseIntPipe } from '@nestjs/common';
 import type { Response } from 'express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -49,10 +49,23 @@ export class AuthController {
   })
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Request() req): UserProfileDto {
-    // Nest автоматически вернет объект пользователя, 
-    // но здесь мы помечаем тип для TypeScript и Swagger
-    return req.user;
+  async getProfile(@Request() req) {
+    // Загружаем актуальные данные пользователя из БД
+    const user = await this.usersService.findById(req.user.userId);
+    
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    // Возвращаем актуальные данные профиля
+    return {
+      sub: user.id.toString(),
+      userId: user.id.toString(),
+      email: user.email,
+      role: user.role,
+      username: user.username,
+      bio: user.bio,
+    };
   }
 
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения в минуту - КРИТИЧНО!
@@ -188,5 +201,39 @@ export class AuthController {
     this.cookieService.clearTokenCookies(res);
     
     return { message: 'Выход выполнен успешно' };
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 поисковых запросов в минуту
+  @UseGuards(JwtAuthGuard)
+  @Get('search')
+  async searchUsers(@Request() req, @Query('q') query: string) {
+    const users = await this.usersService.searchByUsername(query);
+    
+    // Возвращаем только безопасные данные
+    return users.map(user => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      bio: user.bio,
+    }));
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 запросов профиля в минуту
+  @UseGuards(JwtAuthGuard)
+  @Get('user/:id')
+  async getUserById(@Param('id', ParseIntPipe) id: number) {
+    const user = await this.usersService.findById(id);
+    
+    if (!user) {
+      throw new BadRequestException('Пользователь не найден');
+    }
+    
+    // Возвращаем только безопасные данные
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      bio: user.bio,
+    };
   }
 }

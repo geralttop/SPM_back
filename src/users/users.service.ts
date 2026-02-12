@@ -87,4 +87,18 @@ export class UsersService {
     
     return this.usersRepository.save(user);
   }
+
+  // Метод для поиска пользователей по username
+  async searchByUsername(query: string): Promise<User[]> {
+    if (!query || query.trim().length === 0) {
+      return [];
+    }
+
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.username) LIKE LOWER(:query)', { query: `%${query}%` })
+      .select(['user.id', 'user.username', 'user.email', 'user.bio'])
+      .take(20) // Ограничиваем результаты
+      .getMany();
+  }
 }

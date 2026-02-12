@@ -1,8 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UserProfileDto {
-  @ApiProperty({ example: 1 })
-  id: number;
+  @ApiProperty({ example: '1' })
+  sub: string;
+
+  @ApiProperty({ example: '1' })
+  userId: string;
 
   @ApiProperty({ example: 'geralt' })
   username: string;
@@ -10,6 +13,9 @@ export class UserProfileDto {
   @ApiProperty({ example: 'witcher@kaermorhen.com' })
   email: string;
 
-  @ApiProperty({ example: true, description: 'Подтверждена ли почта' })
-  isEmailVerified: boolean;
+  @ApiProperty({ example: 'user' })
+  role: string;
+
+  @ApiProperty({ example: 'Ведьмак из Каэр Морхена', required: false })
+  bio?: string;
 }

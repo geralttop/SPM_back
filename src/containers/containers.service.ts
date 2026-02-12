@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Container } from './entities/container.entity';
 import { CreateContainerDto } from './dto/create-container.dto';
 import { User } from 'src/users/user.entity';
@@ -54,9 +54,13 @@ export class ContainersService {
     return { message: 'Контейнер и все связанные точки успешно удалены' };
   }
 
-  async findAll() {
+  async findAll(userId: number) {
     return await this.containerRepository.find({
-      relations: ['author', 'points'], // Чтобы видеть, кто создал и какие точки внутри
+      where: [
+        { author: { id: userId } }, // Личные контейнеры пользователя
+        { author: IsNull() }        // + Системные контейнеры (общие)
+      ],
+      relations: ['author'],
       order: { createdAt: 'DESC' },
     });
   }

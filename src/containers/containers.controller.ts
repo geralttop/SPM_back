@@ -11,8 +11,8 @@ export class ContainersController {
   @UseGuards(JwtAuthGuard)
   @Post()
   async create(@Request() req, @Body() createContainerDto: CreateContainerDto) {
-    // Проверь в консоли, как называется поле id в твоем токене (sub или id)
-    const userId = req.user.sub || req.user.userId; 
+    // Используем правильное поле из JWT токена
+    const userId = req.user.userId || req.user.sub; 
     return this.containersService.create(createContainerDto, userId);
   }
 
@@ -23,18 +23,20 @@ export class ContainersController {
     @Body() updateContainerDto: UpdateContainerDto,
     @Request() req
   ) {
-    return this.containersService.update(id, updateContainerDto, req.user.sub);
+    return this.containersService.update(id, updateContainerDto, req.user.userId || req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
-    return this.containersService.remove(id, req.user.sub);
+    return this.containersService.remove(id, req.user.userId || req.user.sub);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
-  findAll() {
-    return this.containersService.findAll();
+  findAll(@Request() req) {
+    const userId = req.user.userId || req.user.sub;
+    return this.containersService.findAll(userId);
   }
 
   @Get(':id')
