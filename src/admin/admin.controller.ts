@@ -21,6 +21,75 @@ export class AdminController {
     private readonly containersService: ContainersService,
   ) {}
 
+  // Статистика для дашборда
+  @Get('stats')
+  async getStats() {
+    const [users] = await this.usersService.findAllWithPagination({ skip: 0, take: 1000 });
+    const [points] = await this.pointsService.findAllWithPagination({ 
+      skip: 0, 
+      take: 1000,
+      relations: ['author', 'category']
+    });
+    const [categories] = await this.categoriesService.findAllWithPagination({ skip: 0, take: 1000 });
+    const [containers] = await this.containersService.findAllWithPagination({ skip: 0, take: 1000 });
+
+    // Статистика по пользователям
+    const adminCount = users.filter(u => u.role === 'admin').length;
+    const userCount = users.filter(u => u.role === 'user').length;
+    const verifiedCount = users.filter(u => u.isEmailVerified).length;
+
+    // Статистика по точкам по категориям
+    const pointsByCategory = categories.map(cat => ({
+      name: cat.name,
+      count: points.filter(p => p.category?.id === cat.id).length,
+      color: cat.color,
+    }));
+
+    // Статистика по точкам по авторам (топ 10)
+    const pointsByAuthor = users
+      .map(user => ({
+        username: user.username,
+        count: points.filter(p => p.authorId === user.id).length,
+      }))
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    // Статистика по датам создания точек (последние 30 дней)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const pointsByDate = points
+      .filter(p => new Date(p.createdAt) >= thirtyDaysAgo)
+      .reduce((acc, point) => {
+        const date = new Date(point.createdAt).toISOString().split('T')[0];
+        acc[date] = (acc[date] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+    const pointsTimeline = Object.entries(pointsByDate)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      totals: {
+        users: users.length,
+        points: points.length,
+        categories: categories.length,
+        containers: containers.length,
+      },
+      users: {
+        admins: adminCount,
+        regularUsers: userCount,
+        verified: verifiedCount,
+        unverified: users.length - verifiedCount,
+      },
+      pointsByCategory,
+      pointsByAuthor,
+      pointsTimeline,
+    };
+  }
+
   // Пользователи
   @Get('users')
   async getUsers(
