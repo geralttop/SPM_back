@@ -22,7 +22,8 @@
     "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
-    "create-admin": "ts-node scripts/create-admin.ts"
+    "create-admin": "ts-node scripts/create-admin.ts",
+    "fix-verified-users": "ts-node scripts/fix-verified-users.ts"
   },
   "dependencies": {
     "@nestjs-modules/mailer": "^2.0.2",

@@ -71,27 +71,45 @@ export class AuthController {
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения в минуту - КРИТИЧНО!
   @Post('verify-email')
   async verifyEmail(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
+    console.log('📧 verify-email: Начало проверки для', body.email);
+    
     const { user, isValid } = await this.authService.verifyCode(body.email, body.code);
     
     if (!isValid) {
+      console.log('❌ verify-email: Код невалиден');
       throw new UnauthorizedException('Неверный код подтверждения');
     }
 
-    // Подтверждаем почту
+    console.log('✅ verify-email: Код валиден, вызываем verifyUser');
+    
+    // Подтверждаем почту (метод verifyUser уже сохраняет изменения)
     const isVerified = await this.usersService.verifyUser(body.email, body.code);
     
     if (isVerified) {
-      // Очищаем временные данные кода
-      user.confirmationCode = null;
-      user.codeCreatedAt = null;
-      await this.usersService.saveUser(user);
+      console.log('✅ verify-email: verifyUser вернул true, получаем обновленного пользователя');
+      
+      // Получаем обновленного пользователя из БД
+      const updatedUser = await this.usersService.findByEmail(body.email);
+      
+      if (!updatedUser) {
+        console.log('❌ verify-email: Обновленный пользователь не найден');
+        throw new UnauthorizedException('Пользователь не найден');
+      }
+
+      console.log('🔍 verify-email: Обновленный пользователь из БД:', {
+        email: updatedUser.email,
+        isEmailVerified: updatedUser.isEmailVerified,
+        confirmationCode: updatedUser.confirmationCode,
+      });
 
       // Генерируем токены
-      const tokens = await this.authService.getTokens(user.id, user.email, user.role, user.username);
-      await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
+      const tokens = await this.authService.getTokens(updatedUser.id, updatedUser.email, updatedUser.role, updatedUser.username);
+      await this.authService.updateRefreshToken(updatedUser.id, tokens.refreshToken);
 
       // Устанавливаем refresh token в httpOnly cookie
       this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+
+      console.log('🎉 verify-email: Успешно завершено');
 
       // Возвращаем только access token в теле ответа
       return { 
@@ -101,6 +119,7 @@ export class AuthController {
       };
     }
     
+    console.log('❌ verify-email: verifyUser вернул false');
     throw new UnauthorizedException('Неверный код подтверждения');
   }
 
@@ -114,9 +133,10 @@ export class AuthController {
     }
 
     // Очищаем временные данные кода
-    user.confirmationCode = null;
-    user.codeCreatedAt = null;
-    await this.usersService.saveUser(user);
+    await this.usersService.update(user.id, {
+      confirmationCode: null,
+      codeCreatedAt: null,
+    });
 
     // 3. ГЕНЕРАЦИЯ ДВУХ ТОКЕНОВ (Вызываем метод из AuthService)
     const tokens = await this.authService.getTokens(user.id, user.email, user.role, user.username);

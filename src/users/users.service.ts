@@ -24,7 +24,16 @@ export class UsersService {
 // Добавим метод подтверждения
   async verifyUser(email: string, code: string): Promise<boolean> {
     const user = await this.findByEmail(email);
-    if (!user) return false;
+    if (!user) {
+      console.log('❌ verifyUser: Пользователь не найден');
+      return false;
+    }
+
+    console.log('🔍 verifyUser: До изменений:', {
+      email: user.email,
+      isEmailVerified: user.isEmailVerified,
+      confirmationCode: user.confirmationCode,
+    });
 
     // ПРОВЕРКА ВРЕМЕНИ
     if (user.codeCreatedAt) {
@@ -39,9 +48,25 @@ export class UsersService {
       user.isEmailVerified = true;
       user.confirmationCode = null;
       user.codeCreatedAt = null; // Очищаем
-      await this.saveUser(user);
+      
+      console.log('✏️ verifyUser: После изменений (перед сохранением):', {
+        email: user.email,
+        isEmailVerified: user.isEmailVerified,
+        confirmationCode: user.confirmationCode,
+      });
+      
+      const savedUser = await this.saveUser(user);
+      
+      console.log('✅ verifyUser: После сохранения:', {
+        email: savedUser.email,
+        isEmailVerified: savedUser.isEmailVerified,
+        confirmationCode: savedUser.confirmationCode,
+      });
+      
       return true;
     }
+    
+    console.log('❌ verifyUser: Код не совпадает');
     return false;
   }
 
@@ -68,7 +93,21 @@ export class UsersService {
 
   // Позволяет сохранить любые изменения в объекте пользователя
   async saveUser(user: User): Promise<User> {
-    return this.usersRepository.save(user);
+    console.log('💾 saveUser: Сохранение пользователя', {
+      id: user.id,
+      email: user.email,
+      isEmailVerified: user.isEmailVerified,
+    });
+    
+    const saved = await this.usersRepository.save(user);
+    
+    console.log('✅ saveUser: Пользователь сохранен', {
+      id: saved.id,
+      email: saved.email,
+      isEmailVerified: saved.isEmailVerified,
+    });
+    
+    return saved;
   }
 
   async remove(id: number): Promise<void> {
