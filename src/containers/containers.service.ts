@@ -19,7 +19,8 @@ export class ContainersService {
       title: createContainerDto.title,
       description: createContainerDto.description,
       // Мы передаем объект с ID, чтобы TypeORM понял связь ManyToOne
-      author: { id: userId } as any, 
+      author: { id: userId } as any,
+      authorId: userId,
     });
 
     return await this.containerRepository.save(container);
@@ -27,7 +28,7 @@ export class ContainersService {
 
   async update(id: string, updateContainerDto: UpdateContainerDto, userId: number) {
     const container = await this.containerRepository.findOne({ 
-      where: { id, author: { id: userId } } 
+      where: { id, authorId: userId } 
     });
 
     if (!container) {
@@ -40,7 +41,7 @@ export class ContainersService {
 
   async remove(id: string, userId: number) {
     const container = await this.containerRepository.findOne({ 
-      where: { id, author: { id: userId } } 
+      where: { id, authorId: userId } 
     });
 
     if (!container) {
@@ -57,8 +58,8 @@ export class ContainersService {
   async findAll(userId: number) {
     return await this.containerRepository.find({
       where: [
-        { author: { id: userId } }, // Личные контейнеры пользователя
-        { author: IsNull() }        // + Системные контейнеры (общие)
+        { authorId: userId }, // Личные контейнеры пользователя
+        { authorId: IsNull() }        // + Системные контейнеры (общие)
       ],
       relations: ['author'],
       order: { createdAt: 'DESC' },

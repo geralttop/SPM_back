@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyTo
 import * as GeoJSON from 'geojson';
 import { Category } from 'src/categories/entities/category.entity';
 import { Container } from 'src/containers/entities/container.entity';
+import { User } from 'src/users/user.entity';
 import { Favorite } from './favorite.entity';
 
 @Entity('points')
@@ -35,6 +36,12 @@ export class PointEntity {
 
   @ManyToOne(() => Container, (container) => container.points, { onDelete: 'CASCADE' })
   container: Container;
+
+  @Column()
+  authorId: number;
+
+  @ManyToOne(() => User, (user) => user.id)
+  author: User;
 
   @OneToMany(() => Favorite, (favorite) => favorite.point)
   favorites: Favorite[];

@@ -19,6 +19,9 @@ export class Category {
   @OneToMany(() => PointEntity, (point) => point.category)
   points: PointEntity[];
 
+  @Column({ nullable: true })
+  authorId: number;
+
   @ManyToOne(() => User, (user) => user.id, { nullable: true })
   author: User; // Если null — категория общая (системная), если есть ID — приватная
 }

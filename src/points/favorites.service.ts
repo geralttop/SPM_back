@@ -59,7 +59,7 @@ export class FavoritesService {
   async getUserFavorites(userId: number) {
     const favorites = await this.favoritesRepository.find({
       where: { user: { id: userId } },
-      relations: ['point', 'point.category', 'point.container'],
+      relations: ['point', 'point.category', 'point.container', 'point.author'],
       order: { createdAt: 'DESC' },
     });
 
@@ -71,6 +71,7 @@ export class FavoritesService {
       coords: fav.point.coords,
       category: fav.point.category,
       container: fav.point.container,
+      author: fav.point.author,
       addedAt: fav.createdAt,
     }));
   }
@@ -84,11 +85,5 @@ export class FavoritesService {
     });
 
     return !!favorite;
-  }
-
-  async getFavoriteCount(pointId: string): Promise<number> {
-    return this.favoritesRepository.count({
-      where: { point: { id: pointId } },
-    });
   }
 }

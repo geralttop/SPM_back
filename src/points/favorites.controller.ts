@@ -17,30 +17,28 @@ export class FavoritesController {
 
   @Post(':pointId')
   async addToFavorites(@Request() req, @Param('pointId') pointId: string) {
-    await this.favoritesService.addToFavorites(req.user.id, pointId);
+    const userId = req.user.userId || req.user.sub;
+    await this.favoritesService.addToFavorites(userId, pointId);
     return { message: 'Точка добавлена в избранное' };
   }
 
   @Delete(':pointId')
   async removeFromFavorites(@Request() req, @Param('pointId') pointId: string) {
-    await this.favoritesService.removeFromFavorites(req.user.id, pointId);
+    const userId = req.user.userId || req.user.sub;
+    await this.favoritesService.removeFromFavorites(userId, pointId);
     return { message: 'Точка удалена из избранного' };
   }
 
   @Get()
   async getUserFavorites(@Request() req) {
-    return this.favoritesService.getUserFavorites(req.user.id);
+    const userId = req.user.userId || req.user.sub;
+    return this.favoritesService.getUserFavorites(userId);
   }
 
   @Get('check/:pointId')
   async isFavorite(@Request() req, @Param('pointId') pointId: string) {
-    const isFavorite = await this.favoritesService.isFavorite(req.user.id, pointId);
+    const userId = req.user.userId || req.user.sub;
+    const isFavorite = await this.favoritesService.isFavorite(userId, pointId);
     return { isFavorite };
-  }
-
-  @Get('stats/:pointId')
-  async getFavoriteStats(@Param('pointId') pointId: string) {
-    const count = await this.favoritesService.getFavoriteCount(pointId);
-    return { favoritesCount: count };
   }
 }

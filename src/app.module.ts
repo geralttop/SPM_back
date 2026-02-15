@@ -21,23 +21,34 @@ import { Container } from './containers/entities/container.entity';
       envFilePath: '.env', // Путь к .env файлу
     }),
     
-    // Rate limiting configuration
-    ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000, // 1 секунда
-        limit: 3, // 3 запроса в секунду (общий лимит)
-      },
-      {
-        name: 'medium', 
-        ttl: 10000, // 10 секунд
-        limit: 20, // 20 запросов за 10 секунд
-      },
-      {
-        name: 'long',
-        ttl: 60000, // 1 минута
-        limit: 100, // 100 запросов в минуту
-      }
+    // Rate limiting configuration - отключено для разработки
+    ...(process.env.NODE_ENV === 'production' ? [
+      ThrottlerModule.forRoot([
+        {
+          name: 'short',
+          ttl: 1000, // 1 секунда
+          limit: 10, // 10 запросов в секунду
+        },
+        {
+          name: 'medium', 
+          ttl: 10000, // 10 секунд
+          limit: 50, // 50 запросов за 10 секунд
+        },
+        {
+          name: 'long',
+          ttl: 60000, // 1 минута
+          limit: 200, // 200 запросов в минуту
+        }
+      ])
+    ] : [
+      // Для разработки - очень мягкие ограничения
+      ThrottlerModule.forRoot([
+        {
+          name: 'dev',
+          ttl: 1000,
+          limit: 1000, // 1000 запросов в секунду для разработки
+        }
+      ])
     ]),
     
     TypeOrmModule.forRoot({

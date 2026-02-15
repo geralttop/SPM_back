@@ -16,7 +16,10 @@ export class Container {
   @CreateDateColumn()
   createdAt: Date;
 
-  @ManyToOne(() => User, (user) => user.id)
+  @Column({ nullable: true })
+  authorId: number;
+
+  @ManyToOne(() => User, (user) => user.id, { nullable: true })
   author: User;
 
   @OneToMany(() => PointEntity, (point) => point.container)

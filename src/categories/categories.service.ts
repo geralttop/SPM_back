@@ -20,6 +20,7 @@ export class CategoriesService {
       icon: createCategoryDto.icon,
       color: createCategoryDto.color,
       author: { id: userId } as any, // Передаем только ID как объект
+      authorId: userId,
     });
 
     return await this.categoryRepository.save(category);
@@ -27,7 +28,7 @@ export class CategoriesService {
 
   async update(id: number, updateCategoryDto: UpdateCategoryDto, userId: number) {
     const category = await this.categoryRepository.findOne({ 
-      where: { id, author: { id: userId } } // Ищем только среди тех, где автор — текущий юзер
+      where: { id, authorId: userId } // Ищем только среди тех, где автор — текущий юзер
     });
 
     if (!category) {
@@ -37,7 +38,7 @@ export class CategoriesService {
     // Проверка на уникальность имени среди своих категорий
     if (updateCategoryDto.name) {
       const existing = await this.categoryRepository.findOne({ 
-        where: { name: updateCategoryDto.name, author: { id: userId } } 
+        where: { name: updateCategoryDto.name, authorId: userId } 
       });
       if (existing && existing.id !== id) {
         throw new BadRequestException('У вас уже есть категория с таким названием');
@@ -50,7 +51,7 @@ export class CategoriesService {
 
   async remove(id: number, userId: number) {
     const category = await this.categoryRepository.findOne({ 
-      where: { id, author: { id: userId } } 
+      where: { id, authorId: userId } 
     });
 
     if (!category) {
@@ -63,8 +64,8 @@ export class CategoriesService {
   async findAll(userId: number) {
     return await this.categoryRepository.find({
       where: [
-        { author: { id: userId } }, // Личные категории пользователя
-        { author: IsNull() }        // + Системные категории (если они нужны)
+        { authorId: userId }, // Личные категории пользователя
+        { authorId: IsNull() }        // + Системные категории (если они нужны)
       ],
       order: { name: 'ASC' }
     });

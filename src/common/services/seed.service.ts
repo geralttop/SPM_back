@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
 import { Container } from '../../containers/entities/container.entity';
 
@@ -20,7 +20,7 @@ export class SeedService implements OnModuleInit {
   private async seedDefaultData() {
     // Создаем системную категорию "Без категории"
     const defaultCategory = await this.categoryRepository.findOne({
-      where: { name: 'Без категории', author: null }
+      where: { name: 'Без категории', author: IsNull() }
     });
 
     if (!defaultCategory) {
@@ -28,21 +28,21 @@ export class SeedService implements OnModuleInit {
         name: 'Без категории',
         icon: 'help-circle',
         color: '#6B7280',
-        author: null, // Системная категория
+        // author не указываем, будет null по умолчанию
       });
       console.log('✅ Создана системная категория "Без категории"');
     }
 
     // Создаем системный контейнер "Общее"
     const defaultContainer = await this.containerRepository.findOne({
-      where: { title: 'Общее', author: null }
+      where: { title: 'Общее', author: IsNull() }
     });
 
     if (!defaultContainer) {
       await this.containerRepository.save({
         title: 'Общее',
         description: 'Общий контейнер для точек без специальной категоризации',
-        author: null, // Системный контейнер
+        // author не указываем, будет null по умолчанию
       });
       console.log('✅ Создан системный контейнер "Общее"');
     }
