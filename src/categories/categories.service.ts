@@ -13,7 +13,7 @@ export class CategoriesService {
     private categoryRepository: Repository<Category>,
   ) {}
 
-  async create(createCategoryDto: CreateCategoryDto, userId: number) {
+  async createCategory(createCategoryDto: CreateCategoryDto, userId: number) {
   // Создаем объект строго из DTO и привязываем ID пользователя
     const category = this.categoryRepository.create({
       name: createCategoryDto.name,
@@ -26,7 +26,7 @@ export class CategoriesService {
     return await this.categoryRepository.save(category);
   }
 
-  async update(id: number, updateCategoryDto: UpdateCategoryDto, userId: number) {
+  async updateCategory(id: number, updateCategoryDto: UpdateCategoryDto, userId: number) {
     const category = await this.categoryRepository.findOne({ 
       where: { id, authorId: userId } // Ищем только среди тех, где автор — текущий юзер
     });
@@ -49,7 +49,7 @@ export class CategoriesService {
     return await this.categoryRepository.save(category);
   }
 
-  async remove(id: number, userId: number) {
+  async removeCategory(id: number, userId: number) {
     const category = await this.categoryRepository.findOne({ 
       where: { id, authorId: userId } 
     });
@@ -69,5 +69,51 @@ export class CategoriesService {
       ],
       order: { name: 'ASC' }
     });
+  }
+
+  // Методы для админки
+  async findAllWithPagination(options: {
+    skip?: number;
+    take?: number;
+    order?: any;
+    relations?: string[];
+  }): Promise<[Category[], number]> {
+    return this.categoryRepository.findAndCount({
+      skip: options.skip || 0,
+      take: options.take || 10,
+      order: options.order || { id: 'ASC' },
+      relations: options.relations || ['author'],
+    });
+  }
+
+  async findOne(id: number): Promise<Category> {
+    const category = await this.categoryRepository.findOne({
+      where: { id },
+      relations: ['author'],
+    });
+    
+    if (!category) {
+      throw new NotFoundException(`Категория с ID ${id} не найдена`);
+    }
+    
+    return category;
+  }
+
+  // Админские методы (без проверки владельца)
+  async update(id: number, updateData: any): Promise<Category> {
+    const category = await this.findOne(id);
+    Object.assign(category, updateData);
+    return this.categoryRepository.save(category);
+  }
+
+  // Админский метод создания
+  async create(createData: any): Promise<Category> {
+    const newCategory = this.categoryRepository.create(createData);
+    return await this.categoryRepository.save(newCategory) as unknown as Category;
+  }
+
+  async remove(id: number): Promise<void> {
+    const category = await this.findOne(id);
+    await this.categoryRepository.remove(category);
   }
 }

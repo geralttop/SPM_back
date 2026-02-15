@@ -8,6 +8,6 @@ import { Container } from './entities/container.entity';
   imports: [TypeOrmModule.forFeature([Container])], // ОБЯЗАТЕЛЬНО
   controllers: [ContainersController],
   providers: [ContainersService],
-  exports: [TypeOrmModule] // Экспортируем, чтобы другие модули видели репозиторий
+  exports: [ContainersService, TypeOrmModule] // Экспортируем, чтобы другие модули видели репозиторий
 })
 export class ContainersModule {}

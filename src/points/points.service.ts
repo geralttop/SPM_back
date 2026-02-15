@@ -12,7 +12,7 @@ export class PointsService {
     private pointsRepository: Repository<PointEntity>,
   ) {}
 
-  async create(createPointDto: CreatePointDto, userId: number) {
+  async createPoint(createPointDto: CreatePointDto, userId: number) {
     const { lng, lat, containerId, categoryId, ...rest } = createPointDto;
 
     const newPoint = this.pointsRepository.create({
@@ -45,7 +45,7 @@ export class PointsService {
     });
   }
 
-  async update(id: string, updatePointDto: UpdatePointDto, userId: number) {
+  async updatePoint(id: string, updatePointDto: UpdatePointDto, userId: number) {
     // Ищем точку и проверяем, что она принадлежит пользователю
     const point = await this.pointsRepository.findOne({ 
       where: { id, authorId: userId },
@@ -88,7 +88,7 @@ export class PointsService {
     });
   }
 
-  async remove(id: string, userId: number) {
+  async removePoint(id: string, userId: number) {
     const point = await this.pointsRepository.findOne({ 
       where: { id, authorId: userId },
       relations: ['author']
@@ -137,5 +137,52 @@ export class PointsService {
       totalPages: Math.ceil(total / limit),
       hasMore: skip + limit < total,
     };
+  }
+
+  // Методы для админки
+  async findAllWithPagination(options: {
+    skip?: number;
+    take?: number;
+    order?: any;
+    relations?: string[];
+  }): Promise<[PointEntity[], number]> {
+    return this.pointsRepository.findAndCount({
+      skip: options.skip || 0,
+      take: options.take || 10,
+      order: options.order || { createdAt: 'DESC' },
+      relations: options.relations || ['category', 'container', 'author'],
+    });
+  }
+
+  async findOne(id: string): Promise<PointEntity> {
+    const point = await this.pointsRepository.findOne({
+      where: { id },
+      relations: ['category', 'container', 'author'],
+    });
+    
+    if (!point) {
+      throw new NotFoundException(`Точка с ID ${id} не найдена`);
+    }
+    
+    return point;
+  }
+
+  // Админский метод обновления (без проверки владельца)
+  async update(id: string, updateData: any): Promise<PointEntity> {
+    const point = await this.findOne(id);
+    Object.assign(point, updateData);
+    return this.pointsRepository.save(point);
+  }
+
+  // Админский метод создания
+  async create(createData: any): Promise<PointEntity> {
+    const newPoint = this.pointsRepository.create(createData);
+    return await this.pointsRepository.save(newPoint) as unknown as PointEntity;
+  }
+
+  // Админский метод удаления
+  async remove(id: string): Promise<void> {
+    const point = await this.findOne(id);
+    await this.pointsRepository.remove(point);
   }
 }

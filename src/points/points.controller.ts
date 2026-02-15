@@ -12,7 +12,7 @@ export class PointsController {
   @Post()
   async create(@Request() req, @Body() createPointDto: CreatePointDto) {
     const userId = req.user.userId || req.user.sub;
-    return this.pointsService.create(createPointDto, userId);
+    return this.pointsService.createPoint(createPointDto, userId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -40,13 +40,13 @@ export class PointsController {
   @Patch(':id')
   async update(@Request() req, @Param('id') id: string, @Body() updatePointDto: UpdatePointDto) {
     const userId = req.user.userId || req.user.sub;
-    return this.pointsService.update(id, updatePointDto, userId);
+    return this.pointsService.updatePoint(id, updatePointDto, userId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   async remove(@Request() req, @Param('id') id: string) {
     const userId = req.user.userId || req.user.sub;
-    return this.pointsService.remove(id, userId);
+    return this.pointsService.removePoint(id, userId);
   }
 }

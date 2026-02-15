@@ -101,4 +101,17 @@ export class UsersService {
       .take(20) // Ограничиваем результаты
       .getMany();
   }
+
+  // Метод для админки с пагинацией
+  async findAllWithPagination(options: {
+    skip?: number;
+    take?: number;
+    order?: any;
+  }): Promise<[User[], number]> {
+    return this.usersRepository.findAndCount({
+      skip: options.skip || 0,
+      take: options.take || 10,
+      order: options.order || { id: 'ASC' },
+    });
+  }
 }

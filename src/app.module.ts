@@ -10,9 +10,10 @@ import { UsersModule } from './users/users.module';
 import { PointsModule } from './points/points.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ContainersModule } from './containers/containers.module';
+import { AdminModule } from './admin/admin.module';
 import { SeedService } from './common/services/seed.service';
-import { Category } from './categories/entities/category.entity';
 import { Container } from './containers/entities/container.entity';
+import { Category } from './categories/entities/category.entity';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { Container } from './containers/entities/container.entity';
     PointsModule,
     CategoriesModule,
     ContainersModule,
+    AdminModule,
     
     // Добавляем TypeOrmModule для SeedService
     TypeOrmModule.forFeature([Category, Container]),

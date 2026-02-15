@@ -13,7 +13,7 @@ export class ContainersService {
     private readonly containerRepository: Repository<Container>,
   ) {}
 
-  async create(createContainerDto: CreateContainerDto, userId: number) {
+  async createContainer(createContainerDto: CreateContainerDto, userId: number) {
     // Создаем экземпляр контейнера
     const container = this.containerRepository.create({
       title: createContainerDto.title,
@@ -26,7 +26,7 @@ export class ContainersService {
     return await this.containerRepository.save(container);
   }
 
-  async update(id: string, updateContainerDto: UpdateContainerDto, userId: number) {
+  async updateContainer(id: string, updateContainerDto: UpdateContainerDto, userId: number) {
     const container = await this.containerRepository.findOne({ 
       where: { id, authorId: userId } 
     });
@@ -39,7 +39,7 @@ export class ContainersService {
     return await this.containerRepository.save(container);
   }
 
-  async remove(id: string, userId: number) {
+  async removeContainer(id: string, userId: number) {
     const container = await this.containerRepository.findOne({ 
       where: { id, authorId: userId } 
     });
@@ -73,5 +73,39 @@ export class ContainersService {
     });
     if (!container) throw new NotFoundException('Контейнер не найден');
     return container;
+  }
+
+  // Методы для админки
+  async findAllWithPagination(options: {
+    skip?: number;
+    take?: number;
+    order?: any;
+    relations?: string[];
+  }): Promise<[Container[], number]> {
+    return this.containerRepository.findAndCount({
+      skip: options.skip || 0,
+      take: options.take || 10,
+      order: options.order || { createdAt: 'DESC' },
+      relations: options.relations || ['author'],
+    });
+  }
+
+  // Админские методы (без проверки владельца)
+  async update(id: string, updateData: any): Promise<Container> {
+    const container = await this.findOne(id);
+    Object.assign(container, updateData);
+    return this.containerRepository.save(container);
+  }
+
+  // Админский метод создания
+  // Админский метод создания
+  async create(createData: any): Promise<Container> {
+    const newContainer = this.containerRepository.create(createData);
+    return await this.containerRepository.save(newContainer) as unknown as Container;
+  }
+
+  async remove(id: string): Promise<void> {
+    const container = await this.findOne(id);
+    await this.containerRepository.remove(container);
   }
 }

@@ -13,7 +13,7 @@ export class ContainersController {
   async create(@Request() req, @Body() createContainerDto: CreateContainerDto) {
     // Используем правильное поле из JWT токена
     const userId = req.user.userId || req.user.sub; 
-    return this.containersService.create(createContainerDto, userId);
+    return this.containersService.createContainer(createContainerDto, userId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -23,13 +23,13 @@ export class ContainersController {
     @Body() updateContainerDto: UpdateContainerDto,
     @Request() req
   ) {
-    return this.containersService.update(id, updateContainerDto, req.user.userId || req.user.sub);
+    return this.containersService.updateContainer(id, updateContainerDto, req.user.userId || req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
-    return this.containersService.remove(id, req.user.userId || req.user.sub);
+    return this.containersService.removeContainer(id, req.user.userId || req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -13,7 +13,7 @@ export class CategoriesController {
   async create(@Request() req, @Body() createCategoryDto: CreateCategoryDto) {
     // Используем правильное поле из JWT токена
     const userId = req.user.userId || req.user.sub; 
-    return this.categoriesService.create(createCategoryDto, userId);
+    return this.categoriesService.createCategory(createCategoryDto, userId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -23,13 +23,13 @@ export class CategoriesController {
     @Body() updateCategoryDto: UpdateCategoryDto, 
     @Request() req
   ) {
-    return this.categoriesService.update(+id, updateCategoryDto, req.user.userId || req.user.sub);
+    return this.categoriesService.updateCategory(+id, updateCategoryDto, req.user.userId || req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
-    return this.categoriesService.remove(+id, req.user.userId || req.user.sub);
+    return this.categoriesService.removeCategory(+id, req.user.userId || req.user.sub);
   }
 
   @UseGuards(JwtAuthGuard)
