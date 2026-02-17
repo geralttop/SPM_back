@@ -65,6 +65,7 @@ export class AuthController {
       role: user.role,
       username: user.username,
       bio: user.bio,
+      sidebarOrder: user.sidebarOrder,
     };
   }
 
@@ -256,4 +257,13 @@ export class AuthController {
       bio: user.bio,
     };
   }
+
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 обновлений порядка в минуту
+    @UseGuards(JwtAuthGuard)
+    @Patch('sidebar-order')
+    async updateSidebarOrder(@Request() req, @Body() body: { sidebarOrder: string[] }) {
+      const userId = req.user.userId;
+      await this.usersService.update(userId, { sidebarOrder: body.sidebarOrder });
+      return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
+    }
 }

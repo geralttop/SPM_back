@@ -3,6 +3,7 @@ import { Subscription } from './entities/subscription.entity';
 import { Favorite } from '../points/entities/favorite.entity';
 
 export type UserRole = 'user' | 'admin';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
@@ -61,4 +62,8 @@ export class User {
 
   @OneToMany(() => Favorite, (favorite) => favorite.user)
   favorites: Favorite[];
+
+  // Порядок вкладок в sidebar (массив ID вкладок)
+  @Column({ type: 'json', nullable: true })
+  sidebarOrder: string[] | null;
 }

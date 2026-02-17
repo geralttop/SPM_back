@@ -19,9 +19,11 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs",
+    "typeorm:compiled": "node --require ts-node/register ./node_modules/typeorm/cli.js",
     "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
-    "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",
-    "migration:revert": "npm run typeorm -- migration:revert -d src/data-source.ts",
+    "migration:run": "npm run build && npm run typeorm:compiled -- -d dist/src/data-source.js migration:run",
+    "migration:revert": "npm run build && npm run typeorm:compiled -- -d dist/src/data-source.js migration:revert",
+    "migration:show": "npm run typeorm:compiled -- -d dist/src/data-source.js migration:show",
     "create-admin": "ts-node scripts/create-admin.ts",
     "fix-verified-users": "ts-node scripts/fix-verified-users.ts"
   },

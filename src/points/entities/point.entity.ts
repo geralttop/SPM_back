@@ -4,6 +4,7 @@ import { Category } from 'src/categories/entities/category.entity';
 import { Container } from 'src/containers/entities/container.entity';
 import { User } from 'src/users/user.entity';
 import { Favorite } from './favorite.entity';
+import { Comment } from './comment.entity';
 
 @Entity('points')
 export class PointEntity {
@@ -45,4 +46,7 @@ export class PointEntity {
 
   @OneToMany(() => Favorite, (favorite) => favorite.point)
   favorites: Favorite[];
+
+  @OneToMany(() => Comment, (comment) => comment.point)
+  comments: Comment[];
 }
