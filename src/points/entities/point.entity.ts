@@ -1,8 +1,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index, ManyToOne, OneToMany } from 'typeorm';
 import * as GeoJSON from 'geojson';
-import { Category } from 'src/categories/entities/category.entity';
-import { Container } from 'src/containers/entities/container.entity';
-import { User } from 'src/users/user.entity';
+import { Category } from '../../categories/entities/category.entity';
+import { Container } from '../../containers/entities/container.entity';
+import { User } from '../../users/user.entity';
 import { Favorite } from './favorite.entity';
 import { Comment } from './comment.entity';
 

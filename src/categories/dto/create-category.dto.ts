@@ -5,9 +5,7 @@ export class CreateCategoryDto {
   @MinLength(2)
   name: string;
 
-  @IsOptional()
-  @IsString()
-  icon?: string; // Например, "coffee", "park-shrub"
+; // Например, "coffee", "park-shrub"
 
   @IsOptional()
   @IsString()

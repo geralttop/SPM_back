@@ -17,7 +17,6 @@ export class CategoriesService {
   // Создаем объект строго из DTO и привязываем ID пользователя
     const category = this.categoryRepository.create({
       name: createCategoryDto.name,
-      icon: createCategoryDto.icon,
       color: createCategoryDto.color,
       author: { id: userId } as any, // Передаем только ID как объект
       authorId: userId,

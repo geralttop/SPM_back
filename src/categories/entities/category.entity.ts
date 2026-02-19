@@ -1,6 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne } from 'typeorm';
 import { PointEntity } from '../../points/entities/point.entity';
-import { User } from 'src/users/user.entity';
+import { User } from '../../users/user.entity';
 
 @Entity('categories')
 export class Category {
@@ -9,9 +9,6 @@ export class Category {
 
   @Column({ unique: true })
   name: string;
-
-  @Column({ nullable: true })
-  icon: string; // Название иконки для фронтенда (например, 'park', 'cafe')
 
   @Column({ default: '#000000' })
   color: string; // Цвет метки на карте
