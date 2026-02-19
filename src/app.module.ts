@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { BlockCheckMiddleware } from './common/middleware/block-check.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MailerModule } from '@nestjs-modules/mailer'; // Не забудь импорт
 import { AuthModule } from './auth/auth.module';
@@ -11,9 +12,11 @@ import { PointsModule } from './points/points.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ContainersModule } from './containers/containers.module';
 import { AdminModule } from './admin/admin.module';
+import { ReportsModule } from './reports/reports.module';
 import { SeedService } from './common/services/seed.service';
 import { Container } from './containers/entities/container.entity';
 import { Category } from './categories/entities/category.entity';
+import { User } from './users/user.entity';
 
 @Module({
   imports: [
@@ -86,9 +89,10 @@ import { Category } from './categories/entities/category.entity';
     CategoriesModule,
     ContainersModule,
     AdminModule,
+    ReportsModule,
     
     // Добавляем TypeOrmModule для SeedService
-    TypeOrmModule.forFeature([Category, Container]),
+    TypeOrmModule.forFeature([Category, Container, User]),
   ],
   providers: [
     {
@@ -103,5 +107,10 @@ export class AppModule implements NestModule {
     consumer
       .apply(LoggerMiddleware)
       .forRoutes('*'); // Применять ко всем эндпоинтам
+      
+    consumer
+      .apply(BlockCheckMiddleware)
+      .exclude('/auth/login', '/auth/register', '/auth/verify-email', '/auth/verify-login')
+      .forRoutes('*'); // Проверять блокировку для всех маршрутов кроме аутентификации
   }
 }

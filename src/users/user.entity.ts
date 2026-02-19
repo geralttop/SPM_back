@@ -66,4 +66,14 @@ export class User {
   // Порядок вкладок в sidebar (массив ID вкладок)
   @Column({ type: 'json', nullable: true })
   sidebarOrder: string[] | null;
+
+  // Блокировка пользователя
+  @Column({ type: 'boolean', default: false })
+  isBlocked: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  blockedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  blockReason: string | null;
 }

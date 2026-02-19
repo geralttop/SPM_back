@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -7,6 +7,7 @@ import { UsersService } from '../users/users.service';
 import { PointsService } from '../points/points.service';
 import { CategoriesService } from '../categories/categories.service';
 import { ContainersService } from '../containers/containers.service';
+import { ReportsService } from '../reports/reports.service';
 
 @ApiTags('Админка')
 @ApiBearerAuth()
@@ -19,6 +20,7 @@ export class AdminController {
     private readonly pointsService: PointsService,
     private readonly categoriesService: CategoriesService,
     private readonly containersService: ContainersService,
+    private readonly reportsService: ReportsService,
   ) {}
 
   // Статистика для дашборда
@@ -266,5 +268,77 @@ export class AdminController {
   @Post('containers')
   async createContainer(@Body() createData: any) {
     return this.containersService.create(createData);
+  }
+
+  // Жалобы
+  @Get('reports')
+  async getReports(
+    @Query('_start') start: string = '0',
+    @Query('_end') end: string = '10',
+    @Query('_sort') sort: string = 'createdAt',
+    @Query('_order') order: string = 'DESC',
+    @Query('status') status?: string,
+  ) {
+    const startNum = parseInt(start);
+    const endNum = parseInt(end);
+    const limit = endNum - startNum;
+    const page = Math.floor(startNum / limit) + 1;
+    
+    const result = await this.reportsService.findAll(page, limit, status);
+    
+    return {
+      data: result.reports,
+      total: result.total,
+    };
+  }
+
+  @Get('reports/:id')
+  async getReport(@Param('id', ParseIntPipe) id: number) {
+    return this.reportsService.findOne(id);
+  }
+
+  @Put('reports/:id')
+  async updateReport(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateData: any,
+    @Request() req,
+  ) {
+    return this.reportsService.update(id, updateData, req.user.id);
+  }
+
+  @Delete('reports/:id')
+  async deleteReport(@Param('id', ParseIntPipe) id: number) {
+    await this.reportsService.remove(id);
+    return { id };
+  }
+
+  @Post('reports/:id/resolve')
+  async resolveReport(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { action: 'block' | 'dismiss'; adminNotes?: string },
+    @Request() req,
+  ) {
+    console.log(`Admin resolving report ${id} with action: ${body.action}`);
+    console.log('Admin user:', req.user);
+    return this.reportsService.resolveReport(id, req.user.id, body.action, body.adminNotes);
+  }
+
+  // Блокировка пользователей
+  @Post('users/:id/block')
+  async blockUser(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reason?: string },
+  ) {
+    return this.usersService.blockUser(id, body.reason);
+  }
+
+  @Post('users/:id/unblock')
+  async unblockUser(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.unblockUser(id);
+  }
+
+  @Get('users/blocked')
+  async getBlockedUsers() {
+    return this.usersService.getBlockedUsers();
   }
 }

@@ -4,6 +4,7 @@ import { UsersModule } from '../users/users.module';
 import { PointsModule } from '../points/points.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { ContainersModule } from '../containers/containers.module';
+import { ReportsModule } from '../reports/reports.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { ContainersModule } from '../containers/containers.module';
     PointsModule,
     CategoriesModule,
     ContainersModule,
+    ReportsModule,
   ],
   controllers: [AdminController],
 })

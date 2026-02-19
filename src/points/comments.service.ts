@@ -38,12 +38,14 @@ export class CommentsService {
   }
 
   async findByPoint(pointId: string) {
-    return await this.commentsRepository.find({
-      where: { pointId },
-      relations: ['author'],
-      order: { createdAt: 'DESC' },
-    });
-  }
+      return await this.commentsRepository
+        .createQueryBuilder('comment')
+        .leftJoinAndSelect('comment.author', 'author')
+        .where('comment.pointId = :pointId', { pointId })
+        .andWhere('author.isBlocked = :isBlocked', { isBlocked: false })
+        .orderBy('comment.createdAt', 'DESC')
+        .getMany();
+    }
 
   async findByUser(userId: number) {
     return await this.commentsRepository.find({

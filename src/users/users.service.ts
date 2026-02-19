@@ -111,8 +111,18 @@ export class UsersService {
   }
 
   async remove(id: number): Promise<void> {
-    await this.usersRepository.delete(id);
-  }
+      const user = await this.findById(id);
+      if (!user) {
+        throw new BadRequestException(`Пользователь с ID ${id} не найден`);
+      }
+
+      if (user.role === 'admin') {
+        throw new BadRequestException('Нельзя удалить администратора');
+      }
+
+      // Используем remove вместо delete для корректного удаления с каскадами
+      await this.usersRepository.remove(user);
+    }
 
   // Метод для частичного обновления данных пользователя
   async update(id: number, attrs: Partial<User>): Promise<User> {
@@ -151,6 +161,44 @@ export class UsersService {
       skip: options.skip || 0,
       take: options.take || 10,
       order: options.order || { id: 'ASC' },
+    });
+  }
+
+  // Методы для блокировки пользователей
+  async blockUser(id: number, reason?: string): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException(`Пользователь с ID ${id} не найден`);
+    }
+
+    if (user.role === 'admin') {
+      throw new BadRequestException('Нельзя заблокировать администратора');
+    }
+
+    user.isBlocked = true;
+    user.blockedAt = new Date();
+    user.blockReason = reason || 'Заблокирован администратором';
+
+    return this.usersRepository.save(user);
+  }
+
+  async unblockUser(id: number): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) {
+      throw new BadRequestException(`Пользователь с ID ${id} не найден`);
+    }
+
+    user.isBlocked = false;
+    user.blockedAt = null;
+    user.blockReason = null;
+
+    return this.usersRepository.save(user);
+  }
+
+  async getBlockedUsers(): Promise<User[]> {
+    return this.usersRepository.find({
+      where: { isBlocked: true },
+      order: { blockedAt: 'DESC' },
     });
   }
 }

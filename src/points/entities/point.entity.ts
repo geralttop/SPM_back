@@ -41,7 +41,7 @@ export class PointEntity {
   @Column()
   authorId: number;
 
-  @ManyToOne(() => User, (user) => user.id)
+  @ManyToOne(() => User, (user) => user.id, { onDelete: 'CASCADE' })
   author: User;
 
   @OneToMany(() => Favorite, (favorite) => favorite.point)

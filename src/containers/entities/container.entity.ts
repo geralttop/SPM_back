@@ -19,7 +19,7 @@ export class Container {
   @Column({ nullable: true })
   authorId: number;
 
-  @ManyToOne(() => User, (user) => user.id, { nullable: true })
+  @ManyToOne(() => User, (user) => user.id, { nullable: true, onDelete: 'SET NULL' })
   author: User;
 
   @OneToMany(() => PointEntity, (point) => point.container)
