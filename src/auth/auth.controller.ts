@@ -16,6 +16,8 @@ import { RolesGuard } from './guards/roles.guard';
 import { UserRole } from 'src/users/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CookieService } from './services/cookie.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -266,4 +268,16 @@ export class AuthController {
       await this.usersService.update(userId, { sidebarOrder: body.sidebarOrder });
       return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
     }
+
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 запроса в минуту
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 попыток в минуту
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.email, body.code, body.newPassword);
+  }
 }

@@ -199,4 +199,90 @@ export class AuthService {
     
     return tokens;
   }
+    async forgotPassword(email: string) {
+      this.logger.log(`Запрос на восстановление пароля для: ${email}`);
+
+      const user = await this.usersService.findByEmail(email);
+      if (!user) {
+        // Не раскрываем информацию о том, существует ли пользователь
+        this.logger.warn(`Попытка восстановления пароля для несуществующего email: ${email}`);
+        return { message: 'Если пользователь с таким email существует, код восстановления отправлен на почту' };
+      }
+
+      // Проверяем лимит времени
+      this.checkCodeLimits(user);
+
+      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.confirmationCode = resetCode;
+      user.codeCreatedAt = new Date();
+      await this.usersService.saveUser(user);
+
+      await this.sendResetPasswordMail(user.email, resetCode, user.username);
+
+      this.logger.log(`Код восстановления пароля отправлен для ${email}`);
+      return { message: 'Если пользователь с таким email существует, код восстановления отправлен на почту' };
+    }
+
+    async resetPassword(email: string, code: string, newPassword: string) {
+      this.logger.log(`Попытка сброса пароля для: ${email}`);
+
+      const user = await this.usersService.findByEmail(email);
+      if (!user) {
+        throw new UnauthorizedException('Неверный код или email');
+      }
+
+      // Проверяем блокировку кодов
+      await this.bruteForceProtection.checkCodeBlocking(user);
+
+      // Проверка времени (5 минут)
+      if (user.codeCreatedAt) {
+        const now = new Date();
+        const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
+
+        if (diffInMinutes > 5) {
+          throw new BadRequestException('Срок действия кода истек (5 минут). Запросите новый код.');
+        }
+      }
+
+      // Проверка кода
+      const isCodeValid = user.confirmationCode === code && code !== null;
+
+      if (!isCodeValid) {
+        // Регистрируем неудачную попытку
+        await this.bruteForceProtection.recordFailedCodeAttempt(user);
+        throw new UnauthorizedException('Неверный код или email');
+      }
+
+      // Сбрасываем счетчики при успешной проверке
+      await this.bruteForceProtection.resetFailedAttempts(user, 'code');
+
+      // Хешируем новый пароль
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      // Обновляем пароль и очищаем код
+      user.password = hashedPassword;
+      user.confirmationCode = null;
+      user.codeCreatedAt = null;
+      await this.usersService.saveUser(user);
+
+      this.logger.log(`Пароль успешно изменен для ${email}`);
+      return { message: 'Пароль успешно изменен' };
+    }
+
+    // Отдельный метод для отправки письма с кодом восстановления
+    private async sendResetPasswordMail(email: string, code: string, username?: string) {
+      await this.mailerService.sendMail({
+        to: email,
+        subject: 'Восстановление пароля',
+        html: `
+          <h1>Восстановление пароля</h1>
+          <p>Здравствуйте${username ? `, ${username}` : ''}!</p>
+          <p>Вы запросили восстановление пароля. Ваш код для сброса пароля:</p>
+          <h2 style="color: #007bff; font-size: 24px; letter-spacing: 2px;">${code}</h2>
+          <p>Код действителен в течение 5 минут.</p>
+          <p>Если вы не запрашивали восстановление пароля, проигнорируйте это письмо.</p>
+        `,
+      });
+    }
 }
