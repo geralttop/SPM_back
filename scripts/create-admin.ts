@@ -7,9 +7,9 @@ async function createAdmin() {
   const app = await NestFactory.createApplicationContext(AppModule);
   const usersService = app.get(UsersService);
 
-  const email = 'admin@spm.com';
-  const password = 'admin123';
-  const username = 'admin';
+  const email = process.env.ADMIN_EMAIL || 'admin@spm.com';
+  const password = process.env.ADMIN_PASSWORD || 'admin123';
+  const username = process.env.ADMIN_USERNAME || 'admin';
 
   try {
     // Проверяем, существует ли уже админ

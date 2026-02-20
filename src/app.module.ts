@@ -57,11 +57,11 @@ import { User } from './users/user.entity';
     
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'admin',
-      password: 'my_secret_password',
-      database: 'geo_map_app',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
       autoLoadEntities: true,
       synchronize: true, 
     }),
@@ -69,16 +69,16 @@ import { User } from './users/user.entity';
     // --- ВСТАВЛЯЕМ СЮДА ---
     MailerModule.forRoot({
       transport: {
-        host: 'smtp.yandex.ru',
-        port: 465,
+        host: process.env.MAIL_HOST,
+        port: parseInt(process.env.MAIL_PORT || '465'),
         secure: true, // true для порта 465
         auth: {
-          user: 'bluevotinamaliba@yandex.ru',
-          pass: 'zesvvcnuzgstbfnl', // Специальный пароль из настроек Яндекса
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
         },
       },
       defaults: {
-        from: '"SPM" <bluevotinamaliba@yandex.ru>',
+        from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_USER}>`,
       },
     }),
     // -----------------------
