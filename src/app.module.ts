@@ -78,7 +78,7 @@ import { User } from './users/user.entity';
         },
       },
       defaults: {
-        from: '"SMP" <bluevotinamaliba@yandex.ru>',
+        from: '"SPM" <bluevotinamaliba@yandex.ru>',
       },
     }),
     // -----------------------
