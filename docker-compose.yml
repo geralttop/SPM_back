@@ -2,17 +2,42 @@ version: '3.8'
 
 services:
   db:
-    image: postgis/postgis:15-3.3 # Версия Postgres 15 с PostGIS 3.3
-    container_name: spm
+    image: postgis/postgis:15-3.3
+    container_name: spm_db
     restart: always
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: my_secret_password
       POSTGRES_DB: geo_map_app
     ports:
-      - "5432:5432" # Пробрасываем порт, чтобы pgAdmin и Nest.js видели базу
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - spm_network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spm_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    networks:
+      - spm_network
+
+networks:
+  spm_network:
+    driver: bridge
 
 volumes:
   postgres_data:
