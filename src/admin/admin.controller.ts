@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiQuery, ApiBody, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -23,8 +23,9 @@ export class AdminController {
     private readonly reportsService: ReportsService,
   ) {}
 
-  // Статистика для дашборда
   @Get('stats')
+  @ApiOperation({ summary: 'Статистика дашборда', description: 'Сводка: пользователи (всего, админы, верифицированные), точки по категориям и авторам, лента по датам, контейнеры. Только для админов.' })
+  @ApiOkResponse({ description: 'Объект totals, users, pointsByCategory, pointsByAuthor, pointsTimeline' })
   async getStats() {
     const [users] = await this.usersService.findAllWithPagination({ skip: 0, take: 1000 });
     const [points] = await this.pointsService.findAllWithPagination({ 
@@ -92,8 +93,13 @@ export class AdminController {
     };
   }
 
-  // Пользователи
   @Get('users')
+  @ApiOperation({ summary: 'Список пользователей (пагинация)', description: 'Параметры как в react-admin: _start, _end, _sort, _order.' })
+  @ApiQuery({ name: '_start', example: '0' })
+  @ApiQuery({ name: '_end', example: '10' })
+  @ApiQuery({ name: '_sort', example: 'id' })
+  @ApiQuery({ name: '_order', example: 'ASC' })
+  @ApiOkResponse({ description: '{ data: User[], total: number }' })
   async getUsers(
     @Query('_start') start: string = '0',
     @Query('_end') end: string = '10',
@@ -117,23 +123,38 @@ export class AdminController {
   }
 
   @Get('users/:id')
+  @ApiOperation({ summary: 'Пользователь по ID' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: 'Полные данные пользователя' })
   async getUser(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findById(id);
   }
 
   @Put('users/:id')
+  @ApiOperation({ summary: 'Обновить пользователя', description: 'Любые поля (username, email, role, bio, isEmailVerified и т.д.).' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiBody({ schema: { example: { username: 'new_name', role: 'user', bio: 'Обновлённая био' } } })
+  @ApiOkResponse({ description: 'Обновлённый пользователь' })
   async updateUser(@Param('id', ParseIntPipe) id: number, @Body() updateData: any) {
     return this.usersService.update(id, updateData);
   }
 
   @Delete('users/:id')
+  @ApiOperation({ summary: 'Удалить пользователя' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: '{ id }' })
   async deleteUser(@Param('id', ParseIntPipe) id: number) {
     await this.usersService.remove(id);
     return { id };
   }
 
-  // Точки
   @Get('points')
+  @ApiOperation({ summary: 'Список точек (пагинация)', description: 'С relations: author, category, container.' })
+  @ApiQuery({ name: '_start', example: '0' })
+  @ApiQuery({ name: '_end', example: '10' })
+  @ApiQuery({ name: '_sort', example: 'createdAt' })
+  @ApiQuery({ name: '_order', example: 'DESC' })
+  @ApiOkResponse({ description: '{ data: Point[], total }' })
   async getPoints(
     @Query('_start') start: string = '0',
     @Query('_end') end: string = '10',
@@ -158,28 +179,46 @@ export class AdminController {
   }
 
   @Get('points/:id')
+  @ApiOperation({ summary: 'Точка по ID' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiOkResponse({ description: 'Данные точки' })
   async getPoint(@Param('id') id: string) {
     return this.pointsService.findOne(id);
   }
 
   @Put('points/:id')
+  @ApiOperation({ summary: 'Обновить точку' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiBody({ schema: { example: { name: 'Новое название', lat: 55.76, lng: 37.62, categoryId: 2 } } })
+  @ApiOkResponse({ description: 'Обновлённая точка' })
   async updatePoint(@Param('id') id: string, @Body() updateData: any) {
     return this.pointsService.update(id, updateData);
   }
 
   @Delete('points/:id')
+  @ApiOperation({ summary: 'Удалить точку' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiOkResponse({ description: '{ id }' })
   async deletePoint(@Param('id') id: string) {
     await this.pointsService.remove(id);
     return { id };
   }
 
   @Post('points')
+  @ApiOperation({ summary: 'Создать точку (от имени админа)', description: 'Те же поля, что и в обычном CreatePointDto; authorId можно задать или будет от админа.' })
+  @ApiBody({ schema: { example: { name: 'Новая точка', lat: 55.7558, lng: 37.6173, containerId: 'uuid-...', categoryId: 1 } } })
+  @ApiCreatedResponse({ description: 'Созданная точка' })
   async createPoint(@Body() createData: any) {
     return this.pointsService.create(createData);
   }
 
-  // Категории
   @Get('categories')
+  @ApiOperation({ summary: 'Список категорий (пагинация)' })
+  @ApiQuery({ name: '_start', example: '0' })
+  @ApiQuery({ name: '_end', example: '10' })
+  @ApiQuery({ name: '_sort', example: 'id' })
+  @ApiQuery({ name: '_order', example: 'ASC' })
+  @ApiOkResponse({ description: '{ data: Category[], total }' })
   async getCategories(
     @Query('_start') start: string = '0',
     @Query('_end') end: string = '10',
@@ -204,28 +243,46 @@ export class AdminController {
   }
 
   @Get('categories/:id')
+  @ApiOperation({ summary: 'Категория по ID' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: 'Данные категории' })
   async getCategory(@Param('id', ParseIntPipe) id: number) {
     return this.categoriesService.findOne(id);
   }
 
   @Put('categories/:id')
+  @ApiOperation({ summary: 'Обновить категорию' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiBody({ schema: { example: { name: 'Новое имя', color: '#00FF00' } } })
+  @ApiOkResponse({ description: 'Обновлённая категория' })
   async updateCategory(@Param('id', ParseIntPipe) id: number, @Body() updateData: any) {
     return this.categoriesService.update(id, updateData);
   }
 
   @Delete('categories/:id')
+  @ApiOperation({ summary: 'Удалить категорию' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: '{ id }' })
   async deleteCategory(@Param('id', ParseIntPipe) id: number) {
     await this.categoriesService.remove(id);
     return { id };
   }
 
   @Post('categories')
+  @ApiOperation({ summary: 'Создать категорию' })
+  @ApiBody({ schema: { example: { name: 'Кафе', color: '#FF5733' } } })
+  @ApiCreatedResponse({ description: 'Созданная категория' })
   async createCategory(@Body() createData: any) {
     return this.categoriesService.create(createData);
   }
 
-  // Контейнеры
   @Get('containers')
+  @ApiOperation({ summary: 'Список контейнеров (пагинация)' })
+  @ApiQuery({ name: '_start', example: '0' })
+  @ApiQuery({ name: '_end', example: '10' })
+  @ApiQuery({ name: '_sort', example: 'createdAt' })
+  @ApiQuery({ name: '_order', example: 'DESC' })
+  @ApiOkResponse({ description: '{ data: Container[], total }' })
   async getContainers(
     @Query('_start') start: string = '0',
     @Query('_end') end: string = '10',
@@ -250,28 +307,47 @@ export class AdminController {
   }
 
   @Get('containers/:id')
+  @ApiOperation({ summary: 'Контейнер по ID' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiOkResponse({ description: 'Данные контейнера' })
   async getContainer(@Param('id') id: string) {
     return this.containersService.findOne(id);
   }
 
   @Put('containers/:id')
+  @ApiOperation({ summary: 'Обновить контейнер' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiBody({ schema: { example: { title: 'Новое название', description: 'Новое описание' } } })
+  @ApiOkResponse({ description: 'Обновлённый контейнер' })
   async updateContainer(@Param('id') id: string, @Body() updateData: any) {
     return this.containersService.update(id, updateData);
   }
 
   @Delete('containers/:id')
+  @ApiOperation({ summary: 'Удалить контейнер' })
+  @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @ApiOkResponse({ description: '{ id }' })
   async deleteContainer(@Param('id') id: string) {
     await this.containersService.remove(id);
     return { id };
   }
 
   @Post('containers')
+  @ApiOperation({ summary: 'Создать контейнер' })
+  @ApiBody({ schema: { example: { title: 'Мои места', description: 'Подборка' } } })
+  @ApiCreatedResponse({ description: 'Созданный контейнер' })
   async createContainer(@Body() createData: any) {
     return this.containersService.create(createData);
   }
 
-  // Жалобы
   @Get('reports')
+  @ApiOperation({ summary: 'Список жалоб (пагинация)', description: 'Фильтр по status: pending, reviewed, resolved, dismissed.' })
+  @ApiQuery({ name: '_start', example: '0' })
+  @ApiQuery({ name: '_end', example: '10' })
+  @ApiQuery({ name: '_sort', example: 'createdAt' })
+  @ApiQuery({ name: '_order', example: 'DESC' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiOkResponse({ description: '{ data: Report[], total }' })
   async getReports(
     @Query('_start') start: string = '0',
     @Query('_end') end: string = '10',
@@ -293,11 +369,18 @@ export class AdminController {
   }
 
   @Get('reports/:id')
+  @ApiOperation({ summary: 'Жалоба по ID' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: 'Данные жалобы' })
   async getReport(@Param('id', ParseIntPipe) id: number) {
     return this.reportsService.findOne(id);
   }
 
   @Put('reports/:id')
+  @ApiOperation({ summary: 'Обновить жалобу' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiBody({ schema: { example: { status: 'resolved', adminNotes: 'Рассмотрено' } } })
+  @ApiOkResponse({ description: 'Обновлённая жалоба' })
   async updateReport(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateData: any,
@@ -307,12 +390,19 @@ export class AdminController {
   }
 
   @Delete('reports/:id')
+  @ApiOperation({ summary: 'Удалить жалобу' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiOkResponse({ description: '{ id }' })
   async deleteReport(@Param('id', ParseIntPipe) id: number) {
     await this.reportsService.remove(id);
     return { id };
   }
 
   @Post('reports/:id/resolve')
+  @ApiOperation({ summary: 'Рассмотреть жалобу', description: 'action: block | dismiss, опционально adminNotes.' })
+  @ApiParam({ name: 'id', example: '1' })
+  @ApiBody({ schema: { example: { action: 'block', adminNotes: 'Пользователь заблокирован' } } })
+  @ApiOkResponse({ description: 'Результат рассмотрения' })
   async resolveReport(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { action: 'block' | 'dismiss'; adminNotes?: string },
@@ -323,8 +413,11 @@ export class AdminController {
     return this.reportsService.resolveReport(id, req.user.id, body.action, body.adminNotes);
   }
 
-  // Блокировка пользователей
   @Post('users/:id/block')
+  @ApiOperation({ summary: 'Заблокировать пользователя' })
+  @ApiParam({ name: 'id', example: '5' })
+  @ApiBody({ schema: { example: { reason: 'Нарушение правил' } }, required: false })
+  @ApiOkResponse({ description: 'Пользователь заблокирован' })
   async blockUser(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { reason?: string },
@@ -333,11 +426,16 @@ export class AdminController {
   }
 
   @Post('users/:id/unblock')
+  @ApiOperation({ summary: 'Разблокировать пользователя' })
+  @ApiParam({ name: 'id', example: '5' })
+  @ApiOkResponse({ description: 'Пользователь разблокирован' })
   async unblockUser(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.unblockUser(id);
   }
 
   @Get('users/blocked')
+  @ApiOperation({ summary: 'Заблокированные пользователи' })
+  @ApiOkResponse({ description: 'Массив заблокированных пользователей' })
   async getBlockedUsers() {
     return this.usersService.getBlockedUsers();
   }

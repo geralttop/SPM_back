@@ -28,10 +28,14 @@ async function bootstrap() {
 
   // Конфигурация Swagger
   const config = new DocumentBuilder()
-    .setTitle('Geo Map API') // Название твоего проекта
-    .setDescription('Документация API для картографического сервиса') // Описание
+    .setTitle('Geo Map API')
+    .setDescription(
+      'Документация API картографического сервиса. ' +
+      'Включает авторизацию (JWT + 2FA по email), точки на карте, категории, контейнеры, комментарии, избранное, подписки и жалобы. ' +
+      'Используйте кнопку **Authorize** и введите Bearer токен для защищённых эндпоинтов.'
+    )
     .setVersion('1.0')
-    .addBearerAuth() // Включаем поддержку JWT токенов в Swagger
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' }, 'access-token')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

@@ -18,4 +18,7 @@ export class UserProfileDto {
 
   @ApiProperty({ example: 'Ведьмак из Каэр Морхена', required: false })
   bio?: string;
+
+  @ApiProperty({ example: ['map', 'points', 'categories'], required: false, description: 'Порядок вкладок в сайдбаре' })
+  sidebarOrder?: string[];
 }

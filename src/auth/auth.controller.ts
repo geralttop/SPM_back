@@ -5,7 +5,19 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service'; // Добавь этот импорт
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtService } from '@nestjs/jwt';
-import { ApiBearerAuth, ApiTags, ApiOkResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOkResponse,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+  ApiQuery,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
@@ -30,27 +42,34 @@ export class AuthController {
     private readonly cookieService: CookieService,
   ) {}
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 попыток регистрации в минуту
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register')
+  @ApiOperation({ summary: 'Регистрация', description: 'Создаёт нового пользователя. На почту отправляется 6-значный код подтверждения. Лимит: 5 попыток в минуту.' })
+  @ApiBody({ type: RegisterDto })
+  @ApiCreatedResponse({ description: 'Пользователь создан, на email отправлен код подтверждения', schema: { example: { message: 'Код подтверждения отправлен на witcher@kaermorhen.com' } } })
+  @ApiBadRequestResponse({ description: 'Невалидные данные или email/username уже заняты' })
   async register(@Body() body: RegisterDto) {
     // Теперь передаем 3 аргумента: email, password, username
     return this.authService.register(body.email, body.password, body.username);
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 попыток входа в минуту
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
+  @ApiOperation({ summary: 'Вход', description: 'Отправляет 6-значный код на email. После ввода кода используйте POST /auth/verify-login. Лимит: 5 попыток в минуту.' })
+  @ApiBody({ type: LoginDto })
+  @ApiOkResponse({ description: 'Код отправлен на email', schema: { example: { message: 'Код подтверждения отправлен на вашу почту' } } })
+  @ApiUnauthorizedResponse({ description: 'Неверный email или пароль' })
   async login(@Body() body: LoginDto) {
     return this.authService.login(body.email, body.password);
   }
 
-  @SkipThrottle() // Профиль не нуждается в жестком ограничении
-  @ApiBearerAuth() // Показывает замок
-  @ApiOkResponse({ 
-    description: 'Данные профиля успешно получены',
-    type: UserProfileDto // Указываем класс ответа
-  })
-  @UseGuards(JwtAuthGuard)
+  @SkipThrottle()
+  @ApiBearerAuth()
   @Get('profile')
+  @ApiOperation({ summary: 'Профиль', description: 'Возвращает данные текущего пользователя по JWT.' })
+  @ApiOkResponse({ description: 'Данные профиля', type: UserProfileDto })
+  @ApiUnauthorizedResponse({ description: 'Токен отсутствует или невалиден' })
+  @UseGuards(JwtAuthGuard)
   async getProfile(@Request() req) {
     // Загружаем актуальные данные пользователя из БД
     const user = await this.usersService.findById(req.user.userId);
@@ -71,8 +90,12 @@ export class AuthController {
     };
   }
 
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения в минуту - КРИТИЧНО!
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('verify-email')
+  @ApiOperation({ summary: 'Подтверждение email', description: 'Подтверждает регистрацию по коду из письма. Устанавливает refresh token в httpOnly cookie и возвращает accessToken.' })
+  @ApiBody({ type: VerifyCodeDto })
+  @ApiOkResponse({ description: 'Почта подтверждена', schema: { example: { message: 'Почта успешно подтверждена!', accessToken: 'eyJhbGciOiJIUzI1NiIs...' } } })
+  @ApiUnauthorizedResponse({ description: 'Неверный или истёкший код' })
   async verifyEmail(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
     console.log('📧 verify-email: Начало проверки для', body.email);
     
@@ -126,8 +149,12 @@ export class AuthController {
     throw new UnauthorizedException('Неверный код подтверждения');
   }
 
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 попытки подтверждения входа в минуту - КРИТИЧНО!
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('verify-login')
+  @ApiOperation({ summary: 'Подтверждение входа', description: 'Завершает двухфакторный вход по коду из письма. Устанавливает refresh token в cookie, возвращает accessToken.' })
+  @ApiBody({ type: VerifyCodeDto })
+  @ApiOkResponse({ description: 'Вход выполнен', schema: { example: { accessToken: 'eyJhbGciOiJIUzI1NiIs...', message: 'Вход выполнен успешно' } } })
+  @ApiUnauthorizedResponse({ description: 'Неверный код подтверждения' })
   async verifyLogin(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
     const { user, isValid } = await this.authService.verifyCode(body.email, body.code);
 
@@ -157,9 +184,13 @@ export class AuthController {
     };
   }
 
-  @Throttle({ default: { limit: 2, ttl: 300000 } }) // 2 удаления аккаунта за 5 минут
+  @Throttle({ default: { limit: 2, ttl: 300000 } })
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Delete('delete-me')
+  @ApiOperation({ summary: 'Удалить свой аккаунт', description: 'Безвозвратно удаляет аккаунт текущего пользователя. Лимит: 2 запроса за 5 минут.' })
+  @ApiOkResponse({ description: 'Аккаунт удалён', schema: { example: { message: 'Ваш аккаунт успешно удален' } } })
+  @ApiUnauthorizedResponse({ description: 'Требуется авторизация' })
   async deleteMe(@Request() req) {
     // ID пользователя мы берем из токена (поле sub или userId)
     const userId = req.user.userId; 
@@ -167,20 +198,28 @@ export class AuthController {
     return { message: 'Ваш аккаунт успешно удален' };
   }
 
-  // 2. Удаление по ID (например, для админки)
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 удалений админом в минуту
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard) // Добавляем RolesGuard вторым номером
-  @Roles('admin') // Указываем, что только админ может сюда зайти
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
   @Delete('user/:id')
+  @ApiOperation({ summary: 'Удалить пользователя (админ)', description: 'Удаляет пользователя по ID. Доступно только администраторам.' })
+  @ApiParam({ name: 'id', example: '5', description: 'ID пользователя' })
+  @ApiOkResponse({ description: 'Пользователь удалён', schema: { example: { message: 'Пользователь с ID 5 удален администратором' } } })
+  @ApiUnauthorizedResponse({ description: 'Требуется роль admin' })
   async removeUser(@Param('id') id: string) {
     await this.usersService.remove(+id);
     return { message: `Пользователь с ID ${id} удален администратором` };
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 обновлений токена в минуту
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('refresh')
+  @ApiOperation({ summary: 'Обновить токен', description: 'Выдаёт новую пару токенов по refresh token (из cookie или body). Обновлённый refresh записывается в cookie.' })
+  @ApiBody({ required: false, schema: { properties: { refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIs...' } } } })
+  @ApiOkResponse({ description: 'Новый access token', schema: { example: { accessToken: 'eyJhbGciOiJIUzI1NiIs...', message: 'Токен обновлен успешно' } } })
+  @ApiUnauthorizedResponse({ description: 'Refresh token не найден или невалиден' })
   async refresh(@Request() req, @Res({ passthrough: true }) res: Response) {
     const userId = req.user.userId;
     
@@ -203,17 +242,25 @@ export class AuthController {
     };
   }
 
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 обновлений профиля в минуту
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Patch('update-profile')
+  @ApiOperation({ summary: 'Обновить профиль', description: 'Обновляет username и/или bio текущего пользователя.' })
+  @ApiBody({ type: UpdateProfileDto })
+  @ApiOkResponse({ description: 'Профиль обновлён', schema: { example: { id: 1, username: 'geralt_rivia', email: 'witcher@kaermorhen.com', bio: 'Ведьмак из Каэр Морхена', role: 'user' } } })
+  @ApiBadRequestResponse({ description: 'Невалидные данные или username занят' })
   async updateProfile(@Request() req, @Body() body: UpdateProfileDto) {
     // Используем твой универсальный метод update
     return this.usersService.update(req.user.userId, body);
   }
 
-  @SkipThrottle() // Logout не нуждается в жестком ограничении
+  @SkipThrottle()
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('logout')
+  @ApiOperation({ summary: 'Выход', description: 'Инвалидирует refresh token и очищает cookie.' })
+  @ApiOkResponse({ description: 'Выход выполнен', schema: { example: { message: 'Выход выполнен успешно' } } })
   async logout(@Request() req, @Res({ passthrough: true }) res: Response) {
     const userId = req.user.userId;
     
@@ -226,9 +273,13 @@ export class AuthController {
     return { message: 'Выход выполнен успешно' };
   }
 
-  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 поисковых запросов в минуту
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('search')
+  @ApiOperation({ summary: 'Поиск пользователей', description: 'Поиск по username. Возвращает id, username, email, bio.' })
+  @ApiQuery({ name: 'q', required: true, example: 'geralt', description: 'Строка поиска' })
+  @ApiOkResponse({ description: 'Список пользователей', schema: { example: [{ id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак' }] } })
   async searchUsers(@Request() req, @Query('q') query: string) {
     const users = await this.usersService.searchByUsername(query);
     
@@ -241,9 +292,14 @@ export class AuthController {
     }));
   }
 
-  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 запросов профиля в минуту
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get('user/:id')
+  @ApiOperation({ summary: 'Профиль по ID', description: 'Возвращает публичные данные пользователя по ID.' })
+  @ApiParam({ name: 'id', example: '1', description: 'ID пользователя' })
+  @ApiOkResponse({ description: 'Данные пользователя', schema: { example: { id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак' } } })
+  @ApiBadRequestResponse({ description: 'Пользователь не найден' })
   async getUserById(@Param('id', ParseIntPipe) id: number) {
     const user = await this.usersService.findById(id);
     
@@ -260,23 +316,34 @@ export class AuthController {
     };
   }
 
-    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 обновлений порядка в минуту
-    @UseGuards(JwtAuthGuard)
-    @Patch('sidebar-order')
-    async updateSidebarOrder(@Request() req, @Body() body: { sidebarOrder: string[] }) {
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('sidebar-order')
+  @ApiOperation({ summary: 'Порядок вкладок', description: 'Сохраняет порядок элементов в сайдбаре (массив ID в нужном порядке).' })
+  @ApiBody({ schema: { example: { sidebarOrder: ['map', 'points', 'categories', 'containers'] } } })
+  @ApiOkResponse({ description: 'Порядок сохранён', schema: { example: { message: 'Порядок вкладок обновлен', sidebarOrder: ['map', 'points', 'categories'] } } })
+  async updateSidebarOrder(@Request() req, @Body() body: { sidebarOrder: string[] }) {
       const userId = req.user.userId;
       await this.usersService.update(userId, { sidebarOrder: body.sidebarOrder });
       return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
     }
 
   @Post('forgot-password')
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 запроса в минуту
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @ApiOperation({ summary: 'Забыли пароль', description: 'Отправляет на email код для сброса пароля. Лимит: 3 запроса в минуту.' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiOkResponse({ description: 'Код отправлен', schema: { example: { message: 'Если email зарегистрирован, на него отправлен код для сброса пароля' } } })
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body.email);
   }
 
   @Post('reset-password')
-  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 попыток в минуту
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Сброс пароля', description: 'Устанавливает новый пароль по коду из письма (после forgot-password).' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiOkResponse({ description: 'Пароль изменён', schema: { example: { message: 'Пароль успешно изменён' } } })
+  @ApiBadRequestResponse({ description: 'Неверный или истёкший код' })
   async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.email, body.code, body.newPassword);
   }

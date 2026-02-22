@@ -1,27 +1,34 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsNumber, IsString, IsUUID, IsOptional, MaxLength } from 'class-validator';
 
 export class UpdatePointDto {
+  @ApiProperty({ example: 'Кофейня у замка (обновлено)', required: false })
   @IsOptional()
   @IsString()
   @MaxLength(255)
   name?: string;
 
+  @ApiProperty({ example: 'Новое описание', required: false })
   @IsOptional()
   @IsString()
   description?: string;
 
+  @ApiProperty({ example: 37.62, required: false })
   @IsOptional()
   @IsNumber()
   lng?: number;
 
+  @ApiProperty({ example: 55.76, required: false })
   @IsOptional()
   @IsNumber()
   lat?: number;
 
+  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', required: false })
   @IsOptional()
   @IsUUID()
   containerId?: string;
 
+  @ApiProperty({ example: 2, required: false })
   @IsOptional()
   @IsNumber()
   categoryId?: number;
