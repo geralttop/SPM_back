@@ -17,6 +17,7 @@ import { SeedService } from './common/services/seed.service';
 import { Container } from './containers/entities/container.entity';
 import { Category } from './categories/entities/category.entity';
 import { User } from './users/user.entity';
+import { UserBlock } from './users/entities/user-block.entity';
 
 @Module({
   imports: [
@@ -91,8 +92,8 @@ import { User } from './users/user.entity';
     AdminModule,
     ReportsModule,
     
-    // Добавляем TypeOrmModule для SeedService
-    TypeOrmModule.forFeature([Category, Container, User]),
+    // Добавляем TypeOrmModule для SeedService и BlockCheckMiddleware
+    TypeOrmModule.forFeature([Category, Container, User, UserBlock]),
   ],
   providers: [
     {

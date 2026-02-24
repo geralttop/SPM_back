@@ -1,6 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany, OneToOne } from 'typeorm';
 import { Subscription } from './entities/subscription.entity';
 import { Favorite } from '../points/entities/favorite.entity';
+import { UserVerification } from './entities/user-verification.entity';
+import { UserSecurity } from './entities/user-security.entity';
+import { UserSettings } from './entities/user-settings.entity';
+import { UserBlock } from './entities/user-block.entity';
 
 export type UserRole = 'user' | 'admin';
 
@@ -21,38 +25,17 @@ export class User {
   @Column({ default: false })
   isEmailVerified: boolean;
 
-  // Явно указываем type: 'varchar', чтобы TypeORM не путался в null
-  @Column({ type: 'varchar', nullable: true })
-  confirmationCode: string | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  codeCreatedAt: Date | null;
-
   @Column({
-    type: 'varchar', // Используем обычную строку в БД
-    default: 'user', // Значение по умолчанию
+    type: 'varchar',
+    default: 'user',
   })
   role: UserRole;
 
   @Column({ type: 'varchar', nullable: true })
   hashedRefreshToken: string | null;
 
-  // В user.entity.ts добавь:
   @Column({ type: 'text', nullable: true })
   bio: string | null;
-
-  // Поля для защиты от brute-force атак
-  @Column({ type: 'int', default: 0 })
-  failedCodeAttempts: number;
-
-  @Column({ type: 'timestamp', nullable: true })
-  codeBlockedUntil: Date | null;
-
-  @Column({ type: 'int', default: 0 })
-  failedLoginAttempts: number;
-
-  @Column({ type: 'timestamp', nullable: true })
-  loginBlockedUntil: Date | null;
 
   @OneToMany(() => Subscription, (subscription) => subscription.follower)
   subscriptions: Subscription[];
@@ -63,17 +46,16 @@ export class User {
   @OneToMany(() => Favorite, (favorite) => favorite.user)
   favorites: Favorite[];
 
-  // Порядок вкладок в sidebar (массив ID вкладок)
-  @Column({ type: 'json', nullable: true })
-  sidebarOrder: string[] | null;
+  // Связи с новыми таблицами
+  @OneToOne(() => UserVerification, (verification) => verification.user)
+  verification: UserVerification;
 
-  // Блокировка пользователя
-  @Column({ type: 'boolean', default: false })
-  isBlocked: boolean;
+  @OneToOne(() => UserSecurity, (security) => security.user)
+  security: UserSecurity;
 
-  @Column({ type: 'timestamp', nullable: true })
-  blockedAt: Date | null;
+  @OneToOne(() => UserSettings, (settings) => settings.user)
+  settings: UserSettings;
 
-  @Column({ type: 'text', nullable: true })
-  blockReason: string | null;
+  @OneToOne(() => UserBlock, (block) => block.user)
+  block: UserBlock;
 }

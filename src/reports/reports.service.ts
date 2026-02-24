@@ -5,6 +5,7 @@ import { Report } from './entities/report.entity';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { User } from 'src/users/user.entity';
+import { UserBlock } from 'src/users/entities/user-block.entity';
 import { PointEntity } from 'src/points/entities/point.entity';
 import { Comment } from 'src/points/entities/comment.entity';
 
@@ -15,6 +16,8 @@ export class ReportsService {
     private reportsRepository: Repository<Report>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(UserBlock)
+    private blockRepository: Repository<UserBlock>,
     @InjectRepository(PointEntity)
     private pointsRepository: Repository<PointEntity>,
     @InjectRepository(Comment)
@@ -222,10 +225,16 @@ export class ReportsService {
         const user = await this.usersRepository.findOne({ where: { id: userId } });
         if (user) {
           console.log(`Blocking user with id: ${userId}`);
-          user.isBlocked = true;
-          user.blockedAt = new Date();
-          user.blockReason = `Заблокирован по жалобе #${report.id}: ${report.reason}`;
-          await this.usersRepository.save(user);
+          
+          let block = await this.blockRepository.findOne({ where: { userId } });
+          if (!block) {
+            block = this.blockRepository.create({ userId });
+          }
+          
+          block.isBlocked = true;
+          block.blockedAt = new Date();
+          block.blockReason = `Заблокирован по жалобе #${report.id}: ${report.reason}`;
+          await this.blockRepository.save(block);
         } else {
           console.log('User not found for blocking');
         }

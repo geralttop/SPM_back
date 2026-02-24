@@ -41,8 +41,9 @@ export class CommentsService {
       return await this.commentsRepository
         .createQueryBuilder('comment')
         .leftJoinAndSelect('comment.author', 'author')
+        .leftJoin('user_blocks', 'block', 'block.userId = author.id')
         .where('comment.pointId = :pointId', { pointId })
-        .andWhere('author.isBlocked = :isBlocked', { isBlocked: false })
+        .andWhere('(block.isBlocked IS NULL OR block.isBlocked = :isBlocked)', { isBlocked: false })
         .orderBy('comment.createdAt', 'DESC')
         .getMany();
     }

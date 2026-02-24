@@ -2,12 +2,15 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from 'src/users/user.entity';
+import { UserBlock } from 'src/users/entities/user-block.entity';
 
 @Injectable()
 export class BlockedUserGuard implements CanActivate {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(UserBlock)
+    private blockRepository: Repository<UserBlock>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -18,10 +21,10 @@ export class BlockedUserGuard implements CanActivate {
       return true; // Если пользователь не авторизован, пропускаем проверку
     }
 
-    const fullUser = await this.usersRepository.findOne({ where: { id: user.id } });
+    const block = await this.blockRepository.findOne({ where: { userId: user.id } });
     
-    if (fullUser?.isBlocked) {
-      throw new ForbiddenException(`Ваш аккаунт заблокирован. Причина: ${fullUser.blockReason || 'Нарушение правил сервиса'}`);
+    if (block?.isBlocked) {
+      throw new ForbiddenException(`Ваш аккаунт заблокирован. Причина: ${block.blockReason || 'Нарушение правил сервиса'}`);
     }
 
     return true;

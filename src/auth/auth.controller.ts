@@ -78,6 +78,8 @@ export class AuthController {
       throw new UnauthorizedException('Пользователь не найден');
     }
 
+    const settings = await this.usersService.getSettings(user.id);
+
     // Возвращаем актуальные данные профиля
     return {
       sub: user.id.toString(),
@@ -86,7 +88,7 @@ export class AuthController {
       role: user.role,
       username: user.username,
       bio: user.bio,
-      sidebarOrder: user.sidebarOrder,
+      sidebarOrder: settings?.sidebarOrder || null,
     };
   }
 
@@ -125,7 +127,6 @@ export class AuthController {
       console.log('🔍 verify-email: Обновленный пользователь из БД:', {
         email: updatedUser.email,
         isEmailVerified: updatedUser.isEmailVerified,
-        confirmationCode: updatedUser.confirmationCode,
       });
 
       // Генерируем токены
@@ -163,7 +164,7 @@ export class AuthController {
     }
 
     // Очищаем временные данные кода
-    await this.usersService.update(user.id, {
+    await this.usersService.updateVerification(user.id, {
       confirmationCode: null,
       codeCreatedAt: null,
     });
@@ -325,7 +326,7 @@ export class AuthController {
   @ApiOkResponse({ description: 'Порядок сохранён', schema: { example: { message: 'Порядок вкладок обновлен', sidebarOrder: ['map', 'points', 'categories'] } } })
   async updateSidebarOrder(@Request() req, @Body() body: { sidebarOrder: string[] }) {
       const userId = req.user.userId;
-      await this.usersService.update(userId, { sidebarOrder: body.sidebarOrder });
+      await this.usersService.updateSettings(userId, { sidebarOrder: body.sidebarOrder });
       return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
     }
 

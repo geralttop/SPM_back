@@ -18,9 +18,10 @@ export class BruteForceProtectionService {
    * Проверяет, заблокирован ли пользователь для ввода кодов
    */
   async checkCodeBlocking(user: User): Promise<void> {
-    if (user.codeBlockedUntil && new Date() < user.codeBlockedUntil) {
+    const security = await this.usersService.getSecurity(user.id);
+    if (security?.codeBlockedUntil && new Date() < security.codeBlockedUntil) {
       const remainingMinutes = Math.ceil(
-        (user.codeBlockedUntil.getTime() - new Date().getTime()) / 60000
+        (security.codeBlockedUntil.getTime() - new Date().getTime()) / 60000
       );
       this.logger.warn(`Попытка ввода кода заблокированным пользователем: ${user.email}`);
       throw new BadRequestException(
@@ -33,9 +34,10 @@ export class BruteForceProtectionService {
    * Проверяет, заблокирован ли пользователь для входа
    */
   async checkLoginBlocking(user: User): Promise<void> {
-    if (user.loginBlockedUntil && new Date() < user.loginBlockedUntil) {
+    const security = await this.usersService.getSecurity(user.id);
+    if (security?.loginBlockedUntil && new Date() < security.loginBlockedUntil) {
       const remainingMinutes = Math.ceil(
-        (user.loginBlockedUntil.getTime() - new Date().getTime()) / 60000
+        (security.loginBlockedUntil.getTime() - new Date().getTime()) / 60000
       );
       this.logger.warn(`Попытка входа заблокированным пользователем: ${user.email}`);
       throw new BadRequestException(
@@ -48,57 +50,66 @@ export class BruteForceProtectionService {
    * Регистрирует неудачную попытку ввода кода
    */
   async recordFailedCodeAttempt(user: User): Promise<void> {
-    user.failedCodeAttempts += 1;
+    const security = await this.usersService.getSecurity(user.id);
+    if (!security) return;
+
+    security.failedCodeAttempts += 1;
     
     this.logger.warn(
-      `Неверный код от пользователя ${user.email}. Попытка ${user.failedCodeAttempts}/${this.MAX_CODE_ATTEMPTS}`
+      `Неверный код от пользователя ${user.email}. Попытка ${security.failedCodeAttempts}/${this.MAX_CODE_ATTEMPTS}`
     );
 
-    if (user.failedCodeAttempts >= this.MAX_CODE_ATTEMPTS) {
-      user.codeBlockedUntil = new Date(Date.now() + this.CODE_BLOCK_DURATION);
+    if (security.failedCodeAttempts >= this.MAX_CODE_ATTEMPTS) {
+      security.codeBlockedUntil = new Date(Date.now() + this.CODE_BLOCK_DURATION);
       this.logger.error(
         `Пользователь ${user.email} заблокирован на 15 минут за превышение попыток ввода кода`
       );
     }
 
-    await this.usersService.saveUser(user);
+    await this.usersService.updateSecurity(user.id, security);
   }
 
   /**
    * Регистрирует неудачную попытку входа
    */
   async recordFailedLoginAttempt(user: User): Promise<void> {
-    user.failedLoginAttempts += 1;
+    const security = await this.usersService.getSecurity(user.id);
+    if (!security) return;
+
+    security.failedLoginAttempts += 1;
     
     this.logger.warn(
-      `Неверный пароль от пользователя ${user.email}. Попытка ${user.failedLoginAttempts}/${this.MAX_LOGIN_ATTEMPTS}`
+      `Неверный пароль от пользователя ${user.email}. Попытка ${security.failedLoginAttempts}/${this.MAX_LOGIN_ATTEMPTS}`
     );
 
-    if (user.failedLoginAttempts >= this.MAX_LOGIN_ATTEMPTS) {
-      user.loginBlockedUntil = new Date(Date.now() + this.LOGIN_BLOCK_DURATION);
+    if (security.failedLoginAttempts >= this.MAX_LOGIN_ATTEMPTS) {
+      security.loginBlockedUntil = new Date(Date.now() + this.LOGIN_BLOCK_DURATION);
       this.logger.error(
         `Пользователь ${user.email} заблокирован на 30 минут за превышение попыток входа`
       );
     }
 
-    await this.usersService.saveUser(user);
+    await this.usersService.updateSecurity(user.id, security);
   }
 
   /**
    * Сбрасывает счетчики неудачных попыток при успешном действии
    */
   async resetFailedAttempts(user: User, type: 'code' | 'login' | 'both' = 'both'): Promise<void> {
+    const security = await this.usersService.getSecurity(user.id);
+    if (!security) return;
+
     if (type === 'code' || type === 'both') {
-      user.failedCodeAttempts = 0;
-      user.codeBlockedUntil = null;
+      security.failedCodeAttempts = 0;
+      security.codeBlockedUntil = null;
     }
     
     if (type === 'login' || type === 'both') {
-      user.failedLoginAttempts = 0;
-      user.loginBlockedUntil = null;
+      security.failedLoginAttempts = 0;
+      security.loginBlockedUntil = null;
     }
 
-    await this.usersService.saveUser(user);
+    await this.usersService.updateSecurity(user.id, security);
     this.logger.log(`Сброшены счетчики неудачных попыток для пользователя ${user.email}`);
   }
 

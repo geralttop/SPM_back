@@ -30,6 +30,10 @@ async function createAdmin() {
     await usersService.update(admin.id, {
       role: 'admin',
       isEmailVerified: true,
+    });
+
+    // Очищаем код верификации
+    await usersService.updateVerification(admin.id, {
       confirmationCode: null,
       codeCreatedAt: null,
     });

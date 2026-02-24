@@ -21,10 +21,11 @@ export class AuthService {
   ) {}
 
   // Вспомогательный метод для проверки "1 минуты" и "5 минут"
-  private checkCodeLimits(user: User) {
-    if (user.codeCreatedAt) {
+  private async checkCodeLimits(user: User) {
+    const verification = await this.usersService.getVerification(user.id);
+    if (verification?.codeCreatedAt) {
       const now = new Date();
-      const createdAt = new Date(user.codeCreatedAt); // Важно обернуть в new Date()
+      const createdAt = new Date(verification.codeCreatedAt);
       const diffInSeconds = (now.getTime() - createdAt.getTime()) / 1000;
 
       // Ограничение на повторную отправку (60 секунд)
@@ -58,9 +59,6 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(pass, salt);
 
     const user = await this.usersService.create(email, hashedPassword, username, confirmationCode);
-    
-    user.codeCreatedAt = new Date(); // При первой регистрации ставим время сразу
-    await this.usersService.saveUser(user);
 
     await this.sendMail(email, confirmationCode, username);
     this.logger.log(`Пользователь ${username} успешно зарегистрирован. Код отправлен на ${email}`);
@@ -93,12 +91,13 @@ export class AuthService {
 
     this.logger.debug(`Генерация 2FA кода для ${email}`);
     // ВОТ ЗДЕСЬ ПРОВЕРЯЕМ ЛИМИТ 1 МИНУТЫ
-    this.checkCodeLimits(user);
+    await this.checkCodeLimits(user);
 
     const loginCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.confirmationCode = loginCode;
-    user.codeCreatedAt = new Date();
-    await this.usersService.saveUser(user);
+    await this.usersService.updateVerification(user.id, {
+      confirmationCode: loginCode,
+      codeCreatedAt: new Date(),
+    });
 
     await this.sendMail(user.email, loginCode, user.username);
 
@@ -131,10 +130,15 @@ export class AuthService {
     // Проверяем блокировку кодов
     await this.bruteForceProtection.checkCodeBlocking(user);
 
+    const verification = await this.usersService.getVerification(user.id);
+    if (!verification) {
+      return { user, isValid: false };
+    }
+
     // Проверка времени (5 минут)
-    if (user.codeCreatedAt) {
+    if (verification.codeCreatedAt) {
       const now = new Date();
-      const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
+      const diffInMinutes = (now.getTime() - new Date(verification.codeCreatedAt).getTime()) / 1000 / 60;
 
       if (diffInMinutes > 5) {
         throw new BadRequestException('Срок действия кода истек (5 минут). Запросите новый код.');
@@ -142,7 +146,7 @@ export class AuthService {
     }
 
     // Проверка кода
-    const isCodeValid = user.confirmationCode === code && code !== null;
+    const isCodeValid = verification.confirmationCode === code && code !== null;
     
     if (!isCodeValid) {
       // Регистрируем неудачную попытку
@@ -210,12 +214,13 @@ export class AuthService {
       }
 
       // Проверяем лимит времени
-      this.checkCodeLimits(user);
+      await this.checkCodeLimits(user);
 
       const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-      user.confirmationCode = resetCode;
-      user.codeCreatedAt = new Date();
-      await this.usersService.saveUser(user);
+      await this.usersService.updateVerification(user.id, {
+        confirmationCode: resetCode,
+        codeCreatedAt: new Date(),
+      });
 
       await this.sendResetPasswordMail(user.email, resetCode, user.username);
 
@@ -234,10 +239,15 @@ export class AuthService {
       // Проверяем блокировку кодов
       await this.bruteForceProtection.checkCodeBlocking(user);
 
+      const verification = await this.usersService.getVerification(user.id);
+      if (!verification) {
+        throw new UnauthorizedException('Неверный код или email');
+      }
+
       // Проверка времени (5 минут)
-      if (user.codeCreatedAt) {
+      if (verification.codeCreatedAt) {
         const now = new Date();
-        const diffInMinutes = (now.getTime() - new Date(user.codeCreatedAt).getTime()) / 1000 / 60;
+        const diffInMinutes = (now.getTime() - new Date(verification.codeCreatedAt).getTime()) / 1000 / 60;
 
         if (diffInMinutes > 5) {
           throw new BadRequestException('Срок действия кода истек (5 минут). Запросите новый код.');
@@ -245,7 +255,7 @@ export class AuthService {
       }
 
       // Проверка кода
-      const isCodeValid = user.confirmationCode === code && code !== null;
+      const isCodeValid = verification.confirmationCode === code && code !== null;
 
       if (!isCodeValid) {
         // Регистрируем неудачную попытку
@@ -262,9 +272,11 @@ export class AuthService {
 
       // Обновляем пароль и очищаем код
       user.password = hashedPassword;
-      user.confirmationCode = null;
-      user.codeCreatedAt = null;
       await this.usersService.saveUser(user);
+      await this.usersService.updateVerification(user.id, {
+        confirmationCode: null,
+        codeCreatedAt: null,
+      });
 
       this.logger.log(`Пароль успешно изменен для ${email}`);
       return { message: 'Пароль успешно изменен' };

@@ -2,26 +2,58 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { UserVerification } from './entities/user-verification.entity';
+import { UserSecurity } from './entities/user-security.entity';
+import { UserSettings } from './entities/user-settings.entity';
+import { UserBlock } from './entities/user-block.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(UserVerification)
+    private verificationRepository: Repository<UserVerification>,
+    @InjectRepository(UserSecurity)
+    private securityRepository: Repository<UserSecurity>,
+    @InjectRepository(UserSettings)
+    private settingsRepository: Repository<UserSettings>,
+    @InjectRepository(UserBlock)
+    private blockRepository: Repository<UserBlock>,
   ) {}
 
   async create(email: string, passwordHash: string, username: string, code: string): Promise<User> {
-  const newUser = this.usersRepository.create({
+    const newUser = this.usersRepository.create({
       email,
       password: passwordHash,
       username,
-      confirmationCode: code,
-      isEmailVerified: false, // по умолчанию не подтвержден
+      isEmailVerified: false,
     });
-    return this.usersRepository.save(newUser);
+    const savedUser = await this.usersRepository.save(newUser);
+
+    // Создаем связанные записи
+    await this.verificationRepository.save({
+      userId: savedUser.id,
+      confirmationCode: code,
+      codeCreatedAt: new Date(),
+    });
+
+    await this.securityRepository.save({
+      userId: savedUser.id,
+    });
+
+    await this.settingsRepository.save({
+      userId: savedUser.id,
+    });
+
+    await this.blockRepository.save({
+      userId: savedUser.id,
+    });
+
+    return savedUser;
   }
 
-// Добавим метод подтверждения
+  // Добавим метод подтверждения
   async verifyUser(email: string, code: string): Promise<boolean> {
     const user = await this.findByEmail(email);
     if (!user) {
@@ -29,43 +61,52 @@ export class UsersService {
       return false;
     }
 
+    const verification = await this.verificationRepository.findOne({
+      where: { userId: user.id },
+    });
+
+    if (!verification) {
+      return false;
+    }
+
     console.log('🔍 verifyUser: До изменений:', {
       email: user.email,
       isEmailVerified: user.isEmailVerified,
-      confirmationCode: user.confirmationCode,
+      confirmationCode: verification.confirmationCode,
     });
 
     // ПРОВЕРКА ВРЕМЕНИ
-    if (user.codeCreatedAt) {
+    if (verification.codeCreatedAt) {
       const now = new Date();
-      const diffInMinutes = (now.getTime() - user.codeCreatedAt.getTime()) / 1000 / 60;
+      const diffInMinutes =
+        (now.getTime() - verification.codeCreatedAt.getTime()) / 1000 / 60;
       if (diffInMinutes > 5) {
         throw new BadRequestException('Срок действия кода истек');
       }
     }
 
-    if (user.confirmationCode === code) {
+    if (verification.confirmationCode === code) {
       user.isEmailVerified = true;
-      user.confirmationCode = null;
-      user.codeCreatedAt = null; // Очищаем
-      
+      verification.confirmationCode = null;
+      verification.codeCreatedAt = null;
+
       console.log('✏️ verifyUser: После изменений (перед сохранением):', {
         email: user.email,
         isEmailVerified: user.isEmailVerified,
-        confirmationCode: user.confirmationCode,
+        confirmationCode: verification.confirmationCode,
       });
-      
+
+      await this.verificationRepository.save(verification);
       const savedUser = await this.saveUser(user);
-      
+
       console.log('✅ verifyUser: После сохранения:', {
         email: savedUser.email,
         isEmailVerified: savedUser.isEmailVerified,
-        confirmationCode: savedUser.confirmationCode,
       });
-      
+
       return true;
     }
-    
+
     console.log('❌ verifyUser: Код не совпадает');
     return false;
   }
@@ -175,11 +216,17 @@ export class UsersService {
       throw new BadRequestException('Нельзя заблокировать администратора');
     }
 
-    user.isBlocked = true;
-    user.blockedAt = new Date();
-    user.blockReason = reason || 'Заблокирован администратором';
+    let block = await this.blockRepository.findOne({ where: { userId: id } });
+    if (!block) {
+      block = this.blockRepository.create({ userId: id });
+    }
 
-    return this.usersRepository.save(user);
+    block.isBlocked = true;
+    block.blockedAt = new Date();
+    block.blockReason = reason || 'Заблокирован администратором';
+
+    await this.blockRepository.save(block);
+    return user;
   }
 
   async unblockUser(id: number): Promise<User> {
@@ -188,17 +235,79 @@ export class UsersService {
       throw new BadRequestException(`Пользователь с ID ${id} не найден`);
     }
 
-    user.isBlocked = false;
-    user.blockedAt = null;
-    user.blockReason = null;
+    const block = await this.blockRepository.findOne({ where: { userId: id } });
+    if (block) {
+      block.isBlocked = false;
+      block.blockedAt = null;
+      block.blockReason = null;
+      await this.blockRepository.save(block);
+    }
 
-    return this.usersRepository.save(user);
+    return user;
   }
 
   async getBlockedUsers(): Promise<User[]> {
-    return this.usersRepository.find({
+    const blocks = await this.blockRepository.find({
       where: { isBlocked: true },
       order: { blockedAt: 'DESC' },
     });
+
+    const userIds = blocks.map((b) => b.userId);
+    if (userIds.length === 0) return [];
+
+    return this.usersRepository.findByIds(userIds);
+  }
+
+  // Вспомогательные методы для работы с новыми таблицами
+  async getVerification(userId: number): Promise<UserVerification | null> {
+    return this.verificationRepository.findOne({ where: { userId } });
+  }
+
+  async getSecurity(userId: number): Promise<UserSecurity | null> {
+    return this.securityRepository.findOne({ where: { userId } });
+  }
+
+  async getSettings(userId: number): Promise<UserSettings | null> {
+    return this.settingsRepository.findOne({ where: { userId } });
+  }
+
+  async getBlock(userId: number): Promise<UserBlock | null> {
+    return this.blockRepository.findOne({ where: { userId } });
+  }
+
+  async updateVerification(
+    userId: number,
+    data: Partial<UserVerification>,
+  ): Promise<UserVerification> {
+    let verification = await this.getVerification(userId);
+    if (!verification) {
+      verification = this.verificationRepository.create({ userId });
+    }
+    Object.assign(verification, data);
+    return this.verificationRepository.save(verification);
+  }
+
+  async updateSecurity(
+    userId: number,
+    data: Partial<UserSecurity>,
+  ): Promise<UserSecurity> {
+    let security = await this.getSecurity(userId);
+    if (!security) {
+      security = this.securityRepository.create({ userId });
+    }
+    Object.assign(security, data);
+    return this.securityRepository.save(security);
+  }
+
+  async updateSettings(
+    userId: number,
+    data: Partial<UserSettings>,
+  ): Promise<UserSettings> {
+    let settings = await this.getSettings(userId);
+    if (!settings) {
+      settings = this.settingsRepository.create({ userId });
+    }
+    Object.assign(settings, data);
+    return this.settingsRepository.save(settings);
   }
 }
