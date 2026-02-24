@@ -20,7 +20,24 @@ async function bootstrap() {
 
   // Настройка CORS для разрешения запросов с фронтенда
   app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3000'],
+    origin: (origin, callback) => {
+      // Разрешаем localhost и любые IP адреса в локальной сети
+      const allowedOrigins = [
+        'http://localhost:3001',
+        'http://localhost:3000',
+        /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/,  // 10.x.x.x
+        /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,     // 192.168.x.x
+        /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/, // 172.16-31.x.x
+      ];
+      
+      if (!origin || allowedOrigins.some(allowed => 
+        typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
+      )) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true, // ВАЖНО: разрешаем отправку cookies
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -42,6 +59,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document); // Доступ будет по адресу /api
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах
+  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
 }
 bootstrap();
