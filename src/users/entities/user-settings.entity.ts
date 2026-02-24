@@ -21,4 +21,10 @@ export class UserSettings {
 
   @Column({ type: 'json', nullable: true })
   sidebarOrder: string[] | null;
+
+  @Column({ type: 'json', nullable: true })
+  availableMapStyles: string[] | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  defaultMapStyle: string | null;
 }

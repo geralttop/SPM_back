@@ -330,6 +330,81 @@ export class AuthController {
       return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
     }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('map-settings')
+  @ApiOperation({ summary: 'Получить настройки карт', description: 'Возвращает настройки карт пользователя (доступные стили и стиль по умолчанию).' })
+  @ApiOkResponse({ 
+    description: 'Настройки карт', 
+    schema: { 
+      example: { 
+        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
+        defaultMapStyle: 'openstreet'
+      } 
+    } 
+  })
+  async getMapSettings(@Request() req) {
+    const userId = req.user.userId;
+    const settings = await this.usersService.getSettings(userId);
+    
+    return {
+      availableMapStyles: settings?.availableMapStyles || ['openstreet', 'openstreet3d', 'satellite', 'carto'],
+      defaultMapStyle: settings?.defaultMapStyle || 'openstreet',
+    };
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Patch('map-settings')
+  @ApiOperation({ summary: 'Обновить настройки карт', description: 'Сохраняет настройки карт пользователя (доступные стили и стиль по умолчанию).' })
+  @ApiBody({ 
+    schema: { 
+      example: { 
+        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
+        defaultMapStyle: 'openstreet'
+      } 
+    } 
+  })
+  @ApiOkResponse({ 
+    description: 'Настройки сохранены', 
+    schema: { 
+      example: { 
+        message: 'Настройки карт обновлены',
+        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
+        defaultMapStyle: 'openstreet'
+      } 
+    } 
+  })
+  async updateMapSettings(
+    @Request() req, 
+    @Body() body: { availableMapStyles?: string[]; defaultMapStyle?: string }
+  ) {
+    const userId = req.user.userId;
+    
+    // Валидация: хотя бы один стиль должен быть выбран
+    if (body.availableMapStyles && body.availableMapStyles.length === 0) {
+      throw new BadRequestException('At least one map style must be selected');
+    }
+    
+    // Валидация: стиль по умолчанию должен быть в списке доступных
+    if (body.defaultMapStyle && body.availableMapStyles && !body.availableMapStyles.includes(body.defaultMapStyle)) {
+      throw new BadRequestException('Default map style must be in available map styles');
+    }
+    
+    await this.usersService.updateSettings(userId, {
+      availableMapStyles: body.availableMapStyles,
+      defaultMapStyle: body.defaultMapStyle,
+    });
+    
+    return {
+      message: 'Настройки карт обновлены',
+      availableMapStyles: body.availableMapStyles,
+      defaultMapStyle: body.defaultMapStyle,
+    };
+  }
+
   @Post('forgot-password')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Забыли пароль', description: 'Отправляет на email код для сброса пароля. Лимит: 3 запроса в минуту.' })
