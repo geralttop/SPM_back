@@ -50,11 +50,17 @@ export class CategoriesService {
 
   async removeCategory(id: number, userId: number) {
     const category = await this.categoryRepository.findOne({ 
-      where: { id, authorId: userId } 
+      where: { id, authorId: userId },
+      relations: ['points']
     });
 
     if (!category) {
       throw new NotFoundException('Вы не можете удалить эту категорию');
+    }
+
+    // Проверяем, есть ли точки с этой категорией
+    if (category.points && category.points.length > 0) {
+      throw new BadRequestException(`Невозможно удалить категорию. Она используется в ${category.points.length} точках. Сначала удалите или измените категорию этих точек.`);
     }
 
     return await this.categoryRepository.remove(category);

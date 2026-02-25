@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Container } from './entities/container.entity';
@@ -41,18 +41,26 @@ export class ContainersService {
 
   async removeContainer(id: string, userId: number) {
     const container = await this.containerRepository.findOne({ 
-      where: { id, authorId: userId } 
+      where: { id, authorId: userId },
+      relations: ['points']
     });
 
     if (!container) {
       throw new NotFoundException('Контейнер не найден или у вас нет прав на удаление');
     }
 
-    // ТАК КАК В PointEntity стоит onDelete: 'CASCADE', 
-    // база данных сама удалит все связанные точки при удалении контейнера.
+    // Подсчитываем количество точек
+    const pointsCount = container.points?.length || 0;
+    
+    // При удалении контейнера точки НЕ удаляются, 
+    // их containerId устанавливается в NULL (onDelete: 'SET NULL')
     await this.containerRepository.remove(container);
     
-    return { message: 'Контейнер и все связанные точки успешно удалены' };
+    return { 
+      message: pointsCount > 0 
+        ? `Контейнер успешно удален. ${pointsCount} точек теперь без контейнера` 
+        : 'Контейнер успешно удален'
+    };
   }
 
   async findAll(userId: number) {

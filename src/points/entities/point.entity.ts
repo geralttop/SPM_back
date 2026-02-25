@@ -35,7 +35,7 @@ export class PointEntity {
   @ManyToOne(() => Category, (category) => category.points, { nullable: true })
   category: Category;
 
-  @ManyToOne(() => Container, (container) => container.points, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Container, (container) => container.points, { nullable: true, onDelete: 'SET NULL' })
   container: Container;
 
   @Column()
