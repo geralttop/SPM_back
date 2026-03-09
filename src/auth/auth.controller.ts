@@ -214,16 +214,12 @@ export class AuthController {
   }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
   @Post('refresh')
   @ApiOperation({ summary: 'Обновить токен', description: 'Выдаёт новую пару токенов по refresh token (из cookie или body). Обновлённый refresh записывается в cookie.' })
   @ApiBody({ required: false, schema: { properties: { refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIs...' } } } })
   @ApiOkResponse({ description: 'Новый access token', schema: { example: { accessToken: 'eyJhbGciOiJIUzI1NiIs...', message: 'Токен обновлен успешно' } } })
   @ApiUnauthorizedResponse({ description: 'Refresh token не найден или невалиден' })
   async refresh(@Request() req, @Res({ passthrough: true }) res: Response) {
-    const userId = req.user.userId;
-    
     // Получаем refresh token из cookie (приоритет) или из body (для обратной совместимости)
     const refreshToken = this.cookieService.getRefreshTokenFromCookie(req) || req.body.refreshToken;
     
@@ -231,7 +227,13 @@ export class AuthController {
       throw new UnauthorizedException('Refresh token не найден');
     }
 
-    const tokens = await this.authService.refreshTokens(userId, refreshToken);
+    // Декодируем refresh token чтобы получить userId
+    const decoded = this.jwtService.decode(refreshToken) as any;
+    if (!decoded || !decoded.sub) {
+      throw new UnauthorizedException('Невалидный refresh token');
+    }
+
+    const tokens = await this.authService.refreshTokens(decoded.sub, refreshToken);
     
     // Устанавливаем новый refresh token в cookie
     this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);

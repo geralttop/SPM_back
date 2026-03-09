@@ -192,6 +192,14 @@ export class AuthService {
     }
 
     async refreshTokens(userId: number, refreshToken: string) {
+    // Сначала проверяем валидность JWT refresh токена
+    try {
+      const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+      await this.jwtService.verifyAsync(refreshToken, { secret: refreshSecret });
+    } catch (error) {
+      throw new ForbiddenException('Невалидный или истёкший refresh token');
+    }
+
     const user = await this.usersService.findById(userId);
     if (!user || !user.hashedRefreshToken) throw new ForbiddenException('Access Denied');
 
