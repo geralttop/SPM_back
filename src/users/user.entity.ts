@@ -37,6 +37,9 @@ export class User {
   @Column({ type: 'text', nullable: true })
   bio: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  avatar: string | null;
+
   @OneToMany(() => Subscription, (subscription) => subscription.follower)
   subscriptions: Subscription[];
 

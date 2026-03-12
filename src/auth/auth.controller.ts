@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res, Query, ParseIntPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
 import type { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service'; // Добавь этот импорт
@@ -17,6 +18,7 @@ import {
   ApiCreatedResponse,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -30,6 +32,9 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CookieService } from './services/cookie.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { FileUploadService } from './services/file-upload.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -88,6 +93,7 @@ export class AuthController {
       role: user.role,
       username: user.username,
       bio: user.bio,
+      avatar: user.avatar,
       sidebarOrder: settings?.sidebarOrder || null,
     };
   }
@@ -316,6 +322,7 @@ export class AuthController {
       username: user.username,
       email: user.email,
       bio: user.bio,
+      avatar: user.avatar,
     };
   }
 
@@ -424,5 +431,84 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Неверный или истёкший код' })
   async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.email, body.code, body.newPassword);
+  }
+
+  @Post('upload-avatar')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: FileUploadService.avatarStorage,
+      fileFilter: FileUploadService.avatarFileFilter,
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    }),
+  )
+  @ApiOperation({ summary: 'Загрузить аватарку', description: 'Загружает изображение аватарки пользователя (макс. 5MB).' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Аватарка загружена', schema: { example: { message: 'Аватарка успешно загружена', avatarUrl: '/uploads/avatars/uuid.jpg' } } })
+  async uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Файл не загружен');
+    }
+
+    const userId = req.user.userId;
+    const user = await this.usersService.findById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    // Удаляем старую аватарку, если есть
+    if (user.avatar) {
+      const oldPath = path.join(process.cwd(), user.avatar);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+    await this.usersService.update(userId, { avatar: avatarUrl });
+
+    return {
+      message: 'Аватарка успешно загружена',
+      avatarUrl,
+    };
+  }
+
+  @Delete('delete-avatar')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Удалить аватарку', description: 'Удаляет аватарку пользователя.' })
+  @ApiOkResponse({ description: 'Аватарка удалена', schema: { example: { message: 'Аватарка успешно удалена' } } })
+  async deleteAvatar(@Request() req) {
+    const userId = req.user.userId;
+    const user = await this.usersService.findById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    if (user.avatar) {
+      const avatarPath = path.join(process.cwd(), user.avatar);
+      if (fs.existsSync(avatarPath)) {
+        fs.unlinkSync(avatarPath);
+      }
+      await this.usersService.update(userId, { avatar: null });
+    }
+
+    return { message: 'Аватарка успешно удалена' };
   }
 }

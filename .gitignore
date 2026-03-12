@@ -61,4 +61,9 @@ backups/
 *.sql.gz
 *.dump
 
+# Uploaded files
+uploads/*
+!uploads/.gitkeep
+!uploads/avatars/.gitkeep
+
 docs/

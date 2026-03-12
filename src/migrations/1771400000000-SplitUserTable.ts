@@ -80,7 +80,12 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
       FROM users
     `);
 
-    // 9. Удаляем старые колонки из users
+    // 9. Удаляем представление, которое зависит от isBlocked (если существует)
+    await queryRunner.query(`
+      DROP VIEW IF EXISTS v_user_statistics CASCADE
+    `);
+
+    // 10. Удаляем старые колонки из users
     await queryRunner.query(`
       ALTER TABLE users 
       DROP COLUMN "confirmationCode",

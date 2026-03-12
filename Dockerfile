@@ -13,6 +13,9 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Создаем папку для загрузок
+RUN mkdir -p /app/uploads/avatars && chmod -R 755 /app/uploads
+
 # Приложение слушает порт из переменной PORT (в docker-compose задаётся 3000)
 EXPOSE 3000
 
