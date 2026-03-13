@@ -30,19 +30,31 @@ export class PointsService {
 
     const savedPoint = await this.pointsRepository.save(newPoint);
     
-    // Возвращаем точку с загруженными relations
-    return await this.pointsRepository.findOne({
-      where: { id: savedPoint.id },
-      relations: ['category', 'container', 'author'],
-    });
+    // Возвращаем точку с загруженными relations и количеством комментариев
+    const point = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('point.id = :id', { id: savedPoint.id })
+      .getOne();
+    
+    return point;
   }
 
   async findByUser(userId: number) {
-    return await this.pointsRepository.find({
-      where: { authorId: userId },
-      relations: ['category', 'container', 'author'],
-      order: { createdAt: 'DESC' },
-    });
+    const points = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('point.authorId = :userId', { userId })
+      .orderBy('point.createdAt', 'DESC')
+      .getMany();
+    
+    return points;
   }
 
   async updatePoint(id: string, updatePointDto: UpdatePointDto, userId: number) {
@@ -81,11 +93,17 @@ export class PointsService {
 
     const savedPoint = await this.pointsRepository.save(point);
     
-    // Возвращаем обновленную точку с загруженными relations
-    return await this.pointsRepository.findOne({
-      where: { id: savedPoint.id },
-      relations: ['category', 'container', 'author'],
-    });
+    // Возвращаем обновленную точку с загруженными relations и количеством комментариев
+    const updatedPoint = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('point.id = :id', { id: savedPoint.id })
+      .getOne();
+    
+    return updatedPoint;
   }
 
   async removePoint(id: string, userId: number) {
@@ -105,10 +123,16 @@ export class PointsService {
 
   // Метод для получения всех точек (для админки или карты)
   async findAll() {
-    return await this.pointsRepository.find({
-      relations: ['category', 'container', 'author'],
-      order: { createdAt: 'DESC' },
-    });
+    const points = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .orderBy('point.createdAt', 'DESC')
+      .getMany();
+    
+    return points;
   }
 
   // Метод для получения ленты точек с пагинацией (только свои точки и точки подписок)
@@ -121,6 +145,7 @@ export class PointsService {
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .leftJoin('subscriptions', 'subscription', 'subscription.followingId = point.authorId AND subscription.followerId = :userId', { userId })
       .where('point.authorId = :userId OR subscription.id IS NOT NULL', { userId })
       .orderBy('point.createdAt', 'DESC')
@@ -155,10 +180,14 @@ export class PointsService {
   }
 
   async findOne(id: string): Promise<PointEntity> {
-    const point = await this.pointsRepository.findOne({
-      where: { id },
-      relations: ['category', 'container', 'author'],
-    });
+    const point = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('point.id = :id', { id })
+      .getOne();
     
     if (!point) {
       throw new NotFoundException(`Точка с ID ${id} не найдена`);

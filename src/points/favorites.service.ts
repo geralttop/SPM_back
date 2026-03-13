@@ -57,11 +57,16 @@ export class FavoritesService {
   }
 
   async getUserFavorites(userId: number) {
-    const favorites = await this.favoritesRepository.find({
-      where: { user: { id: userId } },
-      relations: ['point', 'point.category', 'point.container', 'point.author'],
-      order: { createdAt: 'DESC' },
-    });
+    const favorites = await this.favoritesRepository
+      .createQueryBuilder('favorite')
+      .leftJoinAndSelect('favorite.point', 'point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('favorite.userId = :userId', { userId })
+      .orderBy('favorite.createdAt', 'DESC')
+      .getMany();
 
     return favorites.map((fav) => ({
       id: fav.point.id,
@@ -72,6 +77,7 @@ export class FavoritesService {
       category: fav.point.category,
       container: fav.point.container,
       author: fav.point.author,
+      commentsCount: (fav.point as any).commentsCount,
       addedAt: fav.createdAt,
     }));
   }
