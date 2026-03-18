@@ -71,7 +71,7 @@ export class AuthService {
 
     if (!user) {
       this.logger.error(`Неудачная попытка входа для несуществующего email: ${email}`);
-      throw new UnauthorizedException('Неверный логин или пароль');
+      throw new UnauthorizedException('Неверный email или пароль');
     }
 
     // Проверяем блокировку входа
@@ -83,7 +83,7 @@ export class AuthService {
       // Регистрируем неудачную попытку входа
       await this.bruteForceProtection.recordFailedLoginAttempt(user);
       this.logger.error(`Неудачная попытка входа для email: ${email}`);
-      throw new UnauthorizedException('Неверный логин или пароль');
+      throw new UnauthorizedException('Неверный email или пароль');
     }
 
     // Сбрасываем счетчик неудачных попыток входа при успешном входе
@@ -110,10 +110,42 @@ export class AuthService {
 
   // Общий метод для отправки почты (чтобы не дублировать код)
   private async sendMail(email: string, code: string, username?: string) {
+    const subject = 'Код подтверждения';
+    const preview = `Ваш код подтверждения: ${code}. Код действует 5 минут.`;
+    const greeting = `Здравствуйте${username ? `, ${username}` : ''}!`;
+    const html = `
+      <div style="background:#f6f7fb;padding:24px 12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+        <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e9f3;border-radius:16px;overflow:hidden;">
+          <div style="padding:20px 22px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;">
+            <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMap</div>
+            <div style="font-size:20px;font-weight:700;margin-top:6px;">Код подтверждения</div>
+          </div>
+          <div style="padding:22px;">
+            <div style="font-size:15px;color:#111827;line-height:1.5;margin-bottom:14px;">${greeting}</div>
+            <div style="font-size:14px;color:#374151;line-height:1.6;margin-bottom:14px;">
+              Введите этот код в приложении, чтобы продолжить. Код действителен <b>5 минут</b>.
+            </div>
+            <div style="text-align:center;margin:18px 0;">
+              <div style="display:inline-block;background:#f3f4ff;border:1px solid #e5e7ff;border-radius:14px;padding:14px 18px;">
+                <div style="font-size:28px;font-weight:800;letter-spacing:6px;color:#111827;">${code}</div>
+              </div>
+            </div>
+            <div style="font-size:12.5px;color:#6b7280;line-height:1.6;">
+              Если вы не запрашивали код, просто проигнорируйте это письмо.
+            </div>
+          </div>
+          <div style="padding:14px 22px;border-top:1px solid #eef0f7;font-size:12px;color:#9ca3af;">
+            Это автоматическое письмо, отвечать на него не нужно.
+          </div>
+        </div>
+      </div>
+    `;
+    const text = `${subject}\n\n${greeting}\n\nВаш код: ${code}\nКод действителен 5 минут.\n\nЕсли вы не запрашивали код, проигнорируйте это письмо.`;
     await this.mailerService.sendMail({
       to: email,
-      subject: 'Код подтверждения',
-      html: `<h1>Ваш код: ${code}</h1>`,
+      subject,
+      text,
+      html,
     });
   }
 
@@ -292,17 +324,41 @@ export class AuthService {
 
     // Отдельный метод для отправки письма с кодом восстановления
     private async sendResetPasswordMail(email: string, code: string, username?: string) {
+      const subject = 'Восстановление пароля';
+      const greeting = `Здравствуйте${username ? `, ${username}` : ''}!`;
+      const html = `
+        <div style="background:#f6f7fb;padding:24px 12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+          <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e9f3;border-radius:16px;overflow:hidden;">
+            <div style="padding:20px 22px;background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#ffffff;">
+              <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMap</div>
+              <div style="font-size:20px;font-weight:700;margin-top:6px;">Восстановление пароля</div>
+            </div>
+            <div style="padding:22px;">
+              <div style="font-size:15px;color:#111827;line-height:1.5;margin-bottom:14px;">${greeting}</div>
+              <div style="font-size:14px;color:#374151;line-height:1.6;margin-bottom:14px;">
+                Мы получили запрос на сброс пароля. Введите код ниже, чтобы задать новый пароль. Код действителен <b>5 минут</b>.
+              </div>
+              <div style="text-align:center;margin:18px 0;">
+                <div style="display:inline-block;background:#eff6ff;border:1px solid #dbeafe;border-radius:14px;padding:14px 18px;">
+                  <div style="font-size:28px;font-weight:800;letter-spacing:6px;color:#111827;">${code}</div>
+                </div>
+              </div>
+              <div style="font-size:12.5px;color:#6b7280;line-height:1.6;">
+                Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо.
+              </div>
+            </div>
+            <div style="padding:14px 22px;border-top:1px solid #eef0f7;font-size:12px;color:#9ca3af;">
+              Это автоматическое письмо, отвечать на него не нужно.
+            </div>
+          </div>
+        </div>
+      `;
+      const text = `${subject}\n\n${greeting}\n\nКод для сброса пароля: ${code}\nКод действителен 5 минут.\n\nЕсли вы не запрашивали восстановление пароля, проигнорируйте это письмо.`;
       await this.mailerService.sendMail({
         to: email,
-        subject: 'Восстановление пароля',
-        html: `
-          <h1>Восстановление пароля</h1>
-          <p>Здравствуйте${username ? `, ${username}` : ''}!</p>
-          <p>Вы запросили восстановление пароля. Ваш код для сброса пароля:</p>
-          <h2 style="color: #007bff; font-size: 24px; letter-spacing: 2px;">${code}</h2>
-          <p>Код действителен в течение 5 минут.</p>
-          <p>Если вы не запрашивали восстановление пароля, проигнорируйте это письмо.</p>
-        `,
+        subject,
+        text,
+        html,
       });
     }
 }
