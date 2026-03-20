@@ -74,6 +74,7 @@ export class FavoritesService {
       description: fav.point.description,
       address: fav.point.address,
       coords: fav.point.coords,
+      createdAt: fav.point.createdAt,
       category: fav.point.category,
       container: fav.point.container,
       author: fav.point.author,
