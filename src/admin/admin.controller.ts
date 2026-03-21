@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Logger } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiQuery, ApiBody, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
+import { parseAdminPagination } from '../common/utils/admin-pagination.util';
 import { UsersService } from '../users/users.service';
 import { PointsService } from '../points/points.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -11,10 +14,12 @@ import { ReportsService } from '../reports/reports.service';
 
 @ApiTags('Админка')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BlockedUserGuard)
 @Roles('admin')
 @Controller('admin')
 export class AdminController {
+  private readonly logger = new Logger(AdminController.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly pointsService: PointsService,
@@ -106,15 +111,9 @@ export class AdminController {
     @Query('_sort') sort: string = 'id',
     @Query('_order') order: string = 'ASC',
   ) {
-    const startNum = parseInt(start);
-    const endNum = parseInt(end);
-    const limit = endNum - startNum;
-    
-    const [users, total] = await this.usersService.findAllWithPagination({
-      skip: startNum,
-      take: limit,
-      order: { [sort]: order.toUpperCase() },
-    });
+    const pagination = parseAdminPagination(start, end, sort, order);
+
+    const [users, total] = await this.usersService.findAllWithPagination(pagination);
 
     return {
       data: users,
@@ -161,14 +160,10 @@ export class AdminController {
     @Query('_sort') sort: string = 'createdAt',
     @Query('_order') order: string = 'DESC',
   ) {
-    const startNum = parseInt(start);
-    const endNum = parseInt(end);
-    const limit = endNum - startNum;
-    
+    const pagination = parseAdminPagination(start, end, sort, order);
+
     const [points, total] = await this.pointsService.findAllWithPagination({
-      skip: startNum,
-      take: limit,
-      order: { [sort]: order.toUpperCase() },
+      ...pagination,
       relations: ['author', 'category', 'container'],
     });
 
@@ -225,14 +220,10 @@ export class AdminController {
     @Query('_sort') sort: string = 'id',
     @Query('_order') order: string = 'ASC',
   ) {
-    const startNum = parseInt(start);
-    const endNum = parseInt(end);
-    const limit = endNum - startNum;
-    
+    const pagination = parseAdminPagination(start, end, sort, order);
+
     const [categories, total] = await this.categoriesService.findAllWithPagination({
-      skip: startNum,
-      take: limit,
-      order: { [sort]: order.toUpperCase() },
+      ...pagination,
       relations: ['author'],
     });
 
@@ -289,14 +280,10 @@ export class AdminController {
     @Query('_sort') sort: string = 'createdAt',
     @Query('_order') order: string = 'DESC',
   ) {
-    const startNum = parseInt(start);
-    const endNum = parseInt(end);
-    const limit = endNum - startNum;
-    
+    const pagination = parseAdminPagination(start, end, sort, order);
+
     const [containers, total] = await this.containersService.findAllWithPagination({
-      skip: startNum,
-      take: limit,
-      order: { [sort]: order.toUpperCase() },
+      ...pagination,
       relations: ['author'],
     });
 
@@ -355,12 +342,10 @@ export class AdminController {
     @Query('_order') order: string = 'DESC',
     @Query('status') status?: string,
   ) {
-    const startNum = parseInt(start);
-    const endNum = parseInt(end);
-    const limit = endNum - startNum;
-    const page = Math.floor(startNum / limit) + 1;
-    
-    const result = await this.reportsService.findAll(page, limit, status);
+    const pagination = parseAdminPagination(start, end, sort, order);
+    const page = Math.floor(pagination.skip / pagination.take) + 1;
+
+    const result = await this.reportsService.findAll(page, pagination.take, status);
     
     return {
       data: result.reports,
@@ -382,11 +367,11 @@ export class AdminController {
   @ApiBody({ schema: { example: { status: 'resolved', adminNotes: 'Рассмотрено' } } })
   @ApiOkResponse({ description: 'Обновлённая жалоба' })
   async updateReport(
-    @Param('id', ParseIntPipe) id: number, 
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateData: any,
-    @Request() req,
+    @CurrentUserId() userId: number,
   ) {
-    return this.reportsService.update(id, updateData, req.user.id);
+    return this.reportsService.update(id, updateData, userId);
   }
 
   @Delete('reports/:id')
@@ -406,11 +391,10 @@ export class AdminController {
   async resolveReport(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { action: 'block' | 'dismiss'; adminNotes?: string },
-    @Request() req,
+    @CurrentUserId() userId: number,
   ) {
-    console.log(`Admin resolving report ${id} with action: ${body.action}`);
-    console.log('Admin user:', req.user);
-    return this.reportsService.resolveReport(id, req.user.id, body.action, body.adminNotes);
+    this.logger.log(`Admin resolving report ${id} with action: ${body.action}`);
+    return this.reportsService.resolveReport(id, userId, body.action, body.adminNotes);
   }
 
   @Post('users/:id/block')

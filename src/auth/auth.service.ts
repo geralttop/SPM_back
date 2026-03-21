@@ -7,6 +7,8 @@ import { BruteForceProtectionService } from './services/brute-force-protection.s
 import * as bcrypt from 'bcrypt';
 import { BadRequestException } from '@nestjs/common';
 import { User } from 'src/users/user.entity';
+import type { Response } from 'express';
+import { CookieService } from './services/cookie.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +20,7 @@ export class AuthService {
     private readonly mailerService: MailerService,
     private configService: ConfigService,
     private bruteForceProtection: BruteForceProtectionService,
+    private cookieService: CookieService,
   ) {}
 
   // Вспомогательный метод для проверки "1 минуты" и "5 минут"
@@ -222,6 +225,13 @@ export class AuthService {
       const hash = await bcrypt.hash(refreshToken, salt);
       await this.usersService.update(userId, { hashedRefreshToken: hash });
     }
+
+  async issueTokensAndSetCookie(user: User, res: Response): Promise<string> {
+    const tokens = await this.getTokens(user.id, user.email, user.role, user.username);
+    await this.updateRefreshToken(user.id, tokens.refreshToken);
+    this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+    return tokens.accessToken;
+  }
 
     async refreshTokens(userId: number, refreshToken: string) {
     // Сначала проверяем валидность JWT refresh токена

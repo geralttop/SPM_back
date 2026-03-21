@@ -9,9 +9,11 @@ import { FavoritesService } from './favorites.service';
 import { FavoritesController } from './favorites.controller';
 import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
+import { User } from '../users/user.entity';
+import { UserBlock } from '../users/entities/user-block.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([PointEntity, Favorite, Comment])],
+  imports: [TypeOrmModule.forFeature([PointEntity, Favorite, Comment, User, UserBlock])],
   controllers: [PointsController, FavoritesController, CommentsController],
   providers: [PointsService, FavoritesService, CommentsService],
   exports: [PointsService, FavoritesService, CommentsService, TypeOrmModule],

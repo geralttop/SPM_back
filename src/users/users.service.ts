@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -9,6 +9,8 @@ import { UserBlock } from './entities/user-block.entity';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -57,7 +59,7 @@ export class UsersService {
   async verifyUser(email: string, code: string): Promise<boolean> {
     const user = await this.findByEmail(email);
     if (!user) {
-      console.log('❌ verifyUser: Пользователь не найден');
+      this.logger.warn('verifyUser: Пользователь не найден');
       return false;
     }
 
@@ -69,11 +71,11 @@ export class UsersService {
       return false;
     }
 
-    console.log('🔍 verifyUser: До изменений:', {
+    this.logger.log(`verifyUser: До изменений: ${JSON.stringify({
       email: user.email,
       isEmailVerified: user.isEmailVerified,
       confirmationCode: verification.confirmationCode,
-    });
+    })}`);
 
     // ПРОВЕРКА ВРЕМЕНИ
     if (verification.codeCreatedAt) {
@@ -90,24 +92,24 @@ export class UsersService {
       verification.confirmationCode = null;
       verification.codeCreatedAt = null;
 
-      console.log('✏️ verifyUser: После изменений (перед сохранением):', {
+      this.logger.log(`verifyUser: После изменений (перед сохранением): ${JSON.stringify({
         email: user.email,
         isEmailVerified: user.isEmailVerified,
         confirmationCode: verification.confirmationCode,
-      });
+      })}`);
 
       await this.verificationRepository.save(verification);
       const savedUser = await this.saveUser(user);
 
-      console.log('✅ verifyUser: После сохранения:', {
+      this.logger.log(`verifyUser: После сохранения: ${JSON.stringify({
         email: savedUser.email,
         isEmailVerified: savedUser.isEmailVerified,
-      });
+      })}`);
 
       return true;
     }
 
-    console.log('❌ verifyUser: Код не совпадает');
+    this.logger.warn('verifyUser: Код не совпадает');
     return false;
   }
 
@@ -134,19 +136,19 @@ export class UsersService {
 
   // Позволяет сохранить любые изменения в объекте пользователя
   async saveUser(user: User): Promise<User> {
-    console.log('💾 saveUser: Сохранение пользователя', {
+    this.logger.log(`saveUser: Сохранение пользователя ${JSON.stringify({
       id: user.id,
       email: user.email,
       isEmailVerified: user.isEmailVerified,
-    });
+    })}`);
     
     const saved = await this.usersRepository.save(user);
     
-    console.log('✅ saveUser: Пользователь сохранен', {
+    this.logger.log(`saveUser: Пользователь сохранен ${JSON.stringify({
       id: saved.id,
       email: saved.email,
       isEmailVerified: saved.isEmailVerified,
-    });
+    })}`);
     
     return saved;
   }

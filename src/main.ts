@@ -1,58 +1,59 @@
-  import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'; // Импортируем
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+
+const LOCAL_NETWORK_PATTERNS = [
+  /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/,
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,
+  /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/,
+];
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Раздача статических файлов (аватарки)
-  // __dirname в скомпилированном коде = dist/src, поэтому идем на 2 уровня вверх
   app.useStaticAssets(join(__dirname, '..', '..', 'uploads'), {
     prefix: '/uploads/',
   });
 
-  // Подключаем cookie-parser для работы с cookies
   app.use(cookieParser());
 
-  // Подключаем глобальную валидацию
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true, // Удаляет свойства, которых нет в DTO
-    forbidNonWhitelisted: true, // Выбрасывает ошибку при лишних свойствах
-    transform: true, // Автоматически преобразует типы
-    disableErrorMessages: false, // Показывает подробные ошибки валидации
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    disableErrorMessages: false,
   }));
 
-  // Настройка CORS для разрешения запросов с фронтенда
+  app.useGlobalFilters(new AllExceptionsFilter());
+
+  const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:3000')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Разрешаем localhost, локальные IP и Vercel
-      const allowedOrigins = [
-        'http://localhost:3001',
-        'http://localhost:3000',
-        'https://shareplacesmap.vercel.app',
-        /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/,  // 10.x.x.x
-        /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,     // 192.168.x.x
-        /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/, // 172.16-31.x.x
-      ];
-      
-      if (!origin || allowedOrigins.some(allowed => 
-        typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
-      )) {
+      if (
+        !origin ||
+        corsOrigins.includes(origin) ||
+        LOCAL_NETWORK_PATTERNS.some(p => p.test(origin))
+      ) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       }
     },
-    credentials: true, // ВАЖНО: разрешаем отправку cookies
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Конфигурация Swagger
   const config = new DocumentBuilder()
     .setTitle('Geo Map API')
     .setDescription(
@@ -65,10 +66,10 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document); // Доступ будет по адресу /api
+  SwaggerModule.setup('api', app, document);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах
-  console.log(`🚀 Application is running on: http://0.0.0.0:${port}`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`Application is running on: http://0.0.0.0:${port}`);
 }
 bootstrap();

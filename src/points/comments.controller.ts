@@ -4,10 +4,12 @@ import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
+import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 
 @ApiTags('Комментарии')
 @Controller()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, BlockedUserGuard)
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
 
@@ -15,8 +17,7 @@ export class CommentsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Мои комментарии', description: 'Все комментарии текущего пользователя.' })
   @ApiOkResponse({ description: 'Массив комментариев' })
-  findMyComments(@Request() req) {
-    const userId = req.user.userId || req.user.sub;
+  findMyComments(@CurrentUserId() userId: number) {
     return this.commentsService.findByUser(userId);
   }
 
@@ -29,9 +30,8 @@ export class CommentsController {
   create(
     @Param('pointId') pointId: string,
     @Body() createCommentDto: CreateCommentDto,
-    @Request() req,
+    @CurrentUserId() userId: number,
   ) {
-    const userId = req.user.userId || req.user.sub;
     return this.commentsService.create(pointId, createCommentDto, userId);
   }
 
@@ -54,9 +54,8 @@ export class CommentsController {
   update(
     @Param('id') id: string,
     @Body() updateCommentDto: UpdateCommentDto,
-    @Request() req,
+    @CurrentUserId() userId: number,
   ) {
-    const userId = req.user.userId || req.user.sub;
     return this.commentsService.update(+id, updateCommentDto, userId);
   }
 
@@ -66,8 +65,7 @@ export class CommentsController {
   @ApiParam({ name: 'pointId', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   @ApiParam({ name: 'id', example: '1' })
   @ApiOkResponse({ description: 'Комментарий удалён' })
-  remove(@Param('id') id: string, @Request() req) {
-    const userId = req.user.userId || req.user.sub;
+  remove(@Param('id') id: string, @CurrentUserId() userId: number) {
     return this.commentsService.remove(+id, userId);
   }
 }

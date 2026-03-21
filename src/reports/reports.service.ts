@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Report } from './entities/report.entity';
@@ -11,6 +11,8 @@ import { Comment } from 'src/points/entities/comment.entity';
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+
   constructor(
     @InjectRepository(Report)
     private reportsRepository: Repository<Report>,
@@ -121,13 +123,13 @@ export class ReportsService {
     try {
       const report = await this.findOne(id);
 
-      console.log(`Resolving report ${id} with action: ${action}`);
-      console.log('Report data:', {
+      this.logger.log(`Resolving report ${id} with action: ${action}`);
+      this.logger.log(`Report data: ${JSON.stringify({
         type: report.type,
         hasPoint: !!report.point,
         hasComment: !!report.comment,
         reportedUserId: report.reportedUserId
-      });
+      })}`);
 
       switch (action) {
         case 'block':
@@ -145,11 +147,11 @@ export class ReportsService {
       }
 
       const savedReport = await this.reportsRepository.save(report);
-      console.log(`Report ${id} resolved successfully`);
+      this.logger.log(`Report ${id} resolved successfully`);
       
       return savedReport;
     } catch (error) {
-      console.error(`Error resolving report ${id}:`, error);
+      this.logger.error(`Error resolving report ${id}`, error?.stack);
       throw error;
     }
   }
@@ -224,7 +226,7 @@ export class ReportsService {
       if (userId) {
         const user = await this.usersRepository.findOne({ where: { id: userId } });
         if (user) {
-          console.log(`Blocking user with id: ${userId}`);
+          this.logger.log(`Blocking user with id: ${userId}`);
           
           let block = await this.blockRepository.findOne({ where: { userId } });
           if (!block) {
@@ -236,13 +238,13 @@ export class ReportsService {
           block.blockReason = `Заблокирован по жалобе #${report.id}: ${report.reason}`;
           await this.blockRepository.save(block);
         } else {
-          console.log('User not found for blocking');
+          this.logger.warn('User not found for blocking');
         }
       } else {
-        console.log('No user ID found for blocking');
+        this.logger.warn('No user ID found for blocking');
       }
     } catch (error) {
-      console.error('Error blocking user:', error);
+      this.logger.error('Error blocking user', error?.stack);
       throw new Error(`Не удалось заблокировать пользователя: ${error.message}`);
     }
   }

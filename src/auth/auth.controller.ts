@@ -1,17 +1,17 @@
-import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res, Query, ParseIntPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException, Delete, Param, BadRequestException, Patch, Res, Query, ParseIntPipe, UseInterceptors, UploadedFile, Logger } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service'; // Добавь этот импорт
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { BlockedUserGuard } from './guards/blocked-user.guard';
 import { JwtService } from '@nestjs/jwt';
 import {
   ApiBearerAuth,
   ApiTags,
   ApiOkResponse,
   ApiOperation,
-  ApiResponse,
   ApiBody,
   ApiParam,
   ApiQuery,
@@ -23,13 +23,12 @@ import {
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UserProfileDto } from '../users/dto/user-profile.dto';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
-import { UserRole } from 'src/users/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { CookieService } from './services/cookie.service';
+import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { FileUploadService } from './services/file-upload.service';
@@ -39,7 +38,8 @@ import * as path from 'path';
 @ApiTags('Авторизация')
 @Controller('auth')
 export class AuthController {
-  // Добавляем usersService в конструктор
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
@@ -74,10 +74,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Профиль', description: 'Возвращает данные текущего пользователя по JWT.' })
   @ApiOkResponse({ description: 'Данные профиля', type: UserProfileDto })
   @ApiUnauthorizedResponse({ description: 'Токен отсутствует или невалиден' })
-  @UseGuards(JwtAuthGuard)
-  async getProfile(@Request() req) {
-    // Загружаем актуальные данные пользователя из БД
-    const user = await this.usersService.findById(req.user.userId);
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  async getProfile(@CurrentUserId() userId: number) {
+    const user = await this.usersService.findById(userId);
     
     if (!user) {
       throw new UnauthorizedException('Пользователь не найден');
@@ -105,54 +104,47 @@ export class AuthController {
   @ApiOkResponse({ description: 'Почта подтверждена', schema: { example: { message: 'Почта успешно подтверждена!', accessToken: 'eyJhbGciOiJIUzI1NiIs...' } } })
   @ApiUnauthorizedResponse({ description: 'Неверный или истёкший код' })
   async verifyEmail(@Body() body: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
-    console.log('📧 verify-email: Начало проверки для', body.email);
+    this.logger.log(`verify-email: Начало проверки для ${body.email}`);
     
     const { user, isValid } = await this.authService.verifyCode(body.email, body.code);
     
     if (!isValid) {
-      console.log('❌ verify-email: Код невалиден');
+      this.logger.warn('verify-email: Код невалиден');
       throw new UnauthorizedException('Неверный код подтверждения');
     }
 
-    console.log('✅ verify-email: Код валиден, вызываем verifyUser');
+    this.logger.log('verify-email: Код валиден, вызываем verifyUser');
     
     // Подтверждаем почту (метод verifyUser уже сохраняет изменения)
     const isVerified = await this.usersService.verifyUser(body.email, body.code);
     
     if (isVerified) {
-      console.log('✅ verify-email: verifyUser вернул true, получаем обновленного пользователя');
+      this.logger.log('verify-email: verifyUser вернул true, получаем обновленного пользователя');
       
       // Получаем обновленного пользователя из БД
       const updatedUser = await this.usersService.findByEmail(body.email);
       
       if (!updatedUser) {
-        console.log('❌ verify-email: Обновленный пользователь не найден');
+        this.logger.warn('verify-email: Обновленный пользователь не найден');
         throw new UnauthorizedException('Пользователь не найден');
       }
 
-      console.log('🔍 verify-email: Обновленный пользователь из БД:', {
+      this.logger.log(`verify-email: Обновленный пользователь из БД: ${JSON.stringify({
         email: updatedUser.email,
         isEmailVerified: updatedUser.isEmailVerified,
-      });
+      })}`);
 
-      // Генерируем токены
-      const tokens = await this.authService.getTokens(updatedUser.id, updatedUser.email, updatedUser.role, updatedUser.username);
-      await this.authService.updateRefreshToken(updatedUser.id, tokens.refreshToken);
+      const accessToken = await this.authService.issueTokensAndSetCookie(updatedUser, res);
 
-      // Устанавливаем refresh token в httpOnly cookie
-      this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
+      this.logger.log('verify-email: Успешно завершено');
 
-      console.log('🎉 verify-email: Успешно завершено');
-
-      // Возвращаем только access token в теле ответа
       return { 
         message: 'Почта успешно подтверждена!',
-        accessToken: tokens.accessToken,
-        // refreshToken больше не отправляется в теле - он в cookie
+        accessToken,
       };
     }
     
-    console.log('❌ verify-email: verifyUser вернул false');
+    this.logger.warn('verify-email: verifyUser вернул false');
     throw new UnauthorizedException('Неверный код подтверждения');
   }
 
@@ -175,39 +167,29 @@ export class AuthController {
       codeCreatedAt: null,
     });
 
-    // 3. ГЕНЕРАЦИЯ ДВУХ ТОКЕНОВ (Вызываем метод из AuthService)
-    const tokens = await this.authService.getTokens(user.id, user.email, user.role, user.username);
-    
-    // 4. СОХРАНЕНИЕ ХЕША REFRESH ТОКЕНА В БАЗУ
-    await this.authService.updateRefreshToken(user.id, tokens.refreshToken);
+    const accessToken = await this.authService.issueTokensAndSetCookie(user, res);
 
-    // Устанавливаем refresh token в httpOnly cookie
-    this.cookieService.setRefreshTokenCookie(res, tokens.refreshToken);
-
-    // Возвращаем только access token
     return {
-      accessToken: tokens.accessToken,
+      accessToken,
       message: 'Вход выполнен успешно'
     };
   }
 
   @Throttle({ default: { limit: 2, ttl: 300000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Delete('delete-me')
   @ApiOperation({ summary: 'Удалить свой аккаунт', description: 'Безвозвратно удаляет аккаунт текущего пользователя. Лимит: 2 запроса за 5 минут.' })
   @ApiOkResponse({ description: 'Аккаунт удалён', schema: { example: { message: 'Ваш аккаунт успешно удален' } } })
   @ApiUnauthorizedResponse({ description: 'Требуется авторизация' })
-  async deleteMe(@Request() req) {
-    // ID пользователя мы берем из токена (поле sub или userId)
-    const userId = req.user.userId; 
+  async deleteMe(@CurrentUserId() userId: number) {
     await this.usersService.remove(userId);
     return { message: 'Ваш аккаунт успешно удален' };
   }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard, RolesGuard)
   @Roles('admin')
   @Delete('user/:id')
   @ApiOperation({ summary: 'Удалить пользователя (админ)', description: 'Удаляет пользователя по ID. Доступно только администраторам.' })
@@ -253,27 +235,23 @@ export class AuthController {
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Patch('update-profile')
   @ApiOperation({ summary: 'Обновить профиль', description: 'Обновляет username и/или bio текущего пользователя.' })
   @ApiBody({ type: UpdateProfileDto })
   @ApiOkResponse({ description: 'Профиль обновлён', schema: { example: { id: 1, username: 'geralt_rivia', email: 'witcher@kaermorhen.com', bio: 'Ведьмак из Каэр Морхена', role: 'user' } } })
   @ApiBadRequestResponse({ description: 'Невалидные данные или username занят' })
-  async updateProfile(@Request() req, @Body() body: UpdateProfileDto) {
-    // Используем твой универсальный метод update
-    return this.usersService.update(req.user.userId, body);
+  async updateProfile(@CurrentUserId() userId: number, @Body() body: UpdateProfileDto) {
+    return this.usersService.update(userId, body);
   }
 
   @SkipThrottle()
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Post('logout')
   @ApiOperation({ summary: 'Выход', description: 'Инвалидирует refresh token и очищает cookie.' })
   @ApiOkResponse({ description: 'Выход выполнен', schema: { example: { message: 'Выход выполнен успешно' } } })
-  async logout(@Request() req, @Res({ passthrough: true }) res: Response) {
-    const userId = req.user.userId;
-    
-    // Удаляем refresh token из БД
+  async logout(@CurrentUserId() userId: number, @Res({ passthrough: true }) res: Response) {
     await this.usersService.update(userId, { hashedRefreshToken: null });
     
     // Очищаем cookies
@@ -284,12 +262,12 @@ export class AuthController {
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get('search')
   @ApiOperation({ summary: 'Поиск пользователей', description: 'Поиск по username. Возвращает id, username, email, bio.' })
   @ApiQuery({ name: 'q', required: true, example: 'geralt', description: 'Строка поиска' })
   @ApiOkResponse({ description: 'Список пользователей', schema: { example: [{ id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак' }] } })
-  async searchUsers(@Request() req, @Query('q') query: string) {
+  async searchUsers(@Query('q') query: string) {
     const users = await this.usersService.searchByUsername(query);
     
     // Возвращаем только безопасные данные
@@ -303,7 +281,7 @@ export class AuthController {
 
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get('user/:id')
   @ApiOperation({ summary: 'Профиль по ID', description: 'Возвращает публичные данные пользователя по ID.' })
   @ApiParam({ name: 'id', example: '1', description: 'ID пользователя' })
@@ -328,20 +306,19 @@ export class AuthController {
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Patch('sidebar-order')
   @ApiOperation({ summary: 'Порядок вкладок', description: 'Сохраняет порядок элементов в сайдбаре (массив ID в нужном порядке).' })
   @ApiBody({ schema: { example: { sidebarOrder: ['map', 'points', 'categories', 'containers'] } } })
   @ApiOkResponse({ description: 'Порядок сохранён', schema: { example: { message: 'Порядок вкладок обновлен', sidebarOrder: ['map', 'points', 'categories'] } } })
-  async updateSidebarOrder(@Request() req, @Body() body: { sidebarOrder: string[] }) {
-      const userId = req.user.userId;
+  async updateSidebarOrder(@CurrentUserId() userId: number, @Body() body: { sidebarOrder: string[] }) {
       await this.usersService.updateSettings(userId, { sidebarOrder: body.sidebarOrder });
       return { message: 'Порядок вкладок обновлен', sidebarOrder: body.sidebarOrder };
     }
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get('map-settings')
   @ApiOperation({ summary: 'Получить настройки карт', description: 'Возвращает настройки карт пользователя (доступные стили и стиль по умолчанию).' })
   @ApiOkResponse({ 
@@ -353,8 +330,7 @@ export class AuthController {
       } 
     } 
   })
-  async getMapSettings(@Request() req) {
-    const userId = req.user.userId;
+  async getMapSettings(@CurrentUserId() userId: number) {
     const settings = await this.usersService.getSettings(userId);
     
     return {
@@ -365,7 +341,7 @@ export class AuthController {
 
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Patch('map-settings')
   @ApiOperation({ summary: 'Обновить настройки карт', description: 'Сохраняет настройки карт пользователя (доступные стили и стиль по умолчанию).' })
   @ApiBody({ 
@@ -387,12 +363,9 @@ export class AuthController {
     } 
   })
   async updateMapSettings(
-    @Request() req, 
+    @CurrentUserId() userId: number, 
     @Body() body: { availableMapStyles?: string[]; defaultMapStyle?: string }
   ) {
-    const userId = req.user.userId;
-    
-    // Валидация: хотя бы один стиль должен быть выбран
     if (body.availableMapStyles && body.availableMapStyles.length === 0) {
       throw new BadRequestException('At least one map style must be selected');
     }
@@ -436,7 +409,7 @@ export class AuthController {
   @Post('upload-avatar')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @UseInterceptors(
     FileInterceptor('avatar', {
       storage: FileUploadService.avatarStorage,
@@ -458,12 +431,11 @@ export class AuthController {
     },
   })
   @ApiOkResponse({ description: 'Аватарка загружена', schema: { example: { message: 'Аватарка успешно загружена', avatarUrl: '/uploads/avatars/uuid.jpg' } } })
-  async uploadAvatar(@Request() req, @UploadedFile() file: Express.Multer.File) {
+  async uploadAvatar(@CurrentUserId() userId: number, @UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('Файл не загружен');
     }
 
-    const userId = req.user.userId;
     const user = await this.usersService.findById(userId);
 
     if (!user) {
@@ -490,11 +462,10 @@ export class AuthController {
   @Delete('delete-avatar')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @ApiOperation({ summary: 'Удалить аватарку', description: 'Удаляет аватарку пользователя.' })
   @ApiOkResponse({ description: 'Аватарка удалена', schema: { example: { message: 'Аватарка успешно удалена' } } })
-  async deleteAvatar(@Request() req) {
-    const userId = req.user.userId;
+  async deleteAvatar(@CurrentUserId() userId: number) {
     const user = await this.usersService.findById(userId);
 
     if (!user) {

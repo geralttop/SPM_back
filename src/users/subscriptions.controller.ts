@@ -11,10 +11,11 @@ import {
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiOkResponse } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
 
 @ApiTags('Подписки')
 @Controller('subscriptions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, BlockedUserGuard)
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 

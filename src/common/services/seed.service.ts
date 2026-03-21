@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
@@ -6,6 +6,8 @@ import { Container } from '../../containers/entities/container.entity';
 
 @Injectable()
 export class SeedService implements OnModuleInit {
+  private readonly logger = new Logger(SeedService.name);
+
   constructor(
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
@@ -30,7 +32,7 @@ export class SeedService implements OnModuleInit {
         color: '#6B7280',
         // author не указываем, будет null по умолчанию
       });
-      console.log('✅ Создана системная категория "Без категории"');
+      this.logger.log('Создана системная категория "Без категории"');
     }
 
     // Создаем системный контейнер "Общее"
@@ -44,7 +46,7 @@ export class SeedService implements OnModuleInit {
         description: 'Общий контейнер для точек без специальной категоризации',
         // author не указываем, будет null по умолчанию
       });
-      console.log('✅ Создан системный контейнер "Общее"');
+      this.logger.log('Создан системный контейнер "Общее"');
     }
   }
 }

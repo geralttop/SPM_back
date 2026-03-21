@@ -4,12 +4,13 @@ import { ReportsService } from './reports.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { BlockedUserGuard } from 'src/auth/guards/blocked-user.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @ApiTags('Жалобы')
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, BlockedUserGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 

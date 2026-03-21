@@ -3,6 +3,8 @@ import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiBody, ApiOkResponse,
 import { ContainersService } from './containers.service';
 import { CreateContainerDto } from './dto/create-container.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
+import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { UpdateContainerDto } from './dto/update-container.dto';
 
 @ApiTags('Контейнеры')
@@ -10,20 +12,18 @@ import { UpdateContainerDto } from './dto/update-container.dto';
 export class ContainersController {
   constructor(private readonly containersService: ContainersService) {}
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать контейнер', description: 'Контейнер — группа точек (например, «Мои места»).' })
   @ApiBody({ type: CreateContainerDto })
   @ApiCreatedResponse({ description: 'Контейнер создан', schema: { example: { id: 'uuid-...', title: 'Мои любимые места', description: 'Подборка кафе', authorId: 1 } } })
   @ApiBadRequestResponse({ description: 'Невалидные данные' })
-  async create(@Request() req, @Body() createContainerDto: CreateContainerDto) {
-    // Используем правильное поле из JWT токена
-    const userId = req.user.userId || req.user.sub; 
+  async create(@CurrentUserId() userId: number, @Body() createContainerDto: CreateContainerDto) {
     return this.containersService.createContainer(createContainerDto, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Patch(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Обновить контейнер', description: 'Обновляет название и/или описание. Только автор.' })
@@ -33,28 +33,27 @@ export class ContainersController {
   update(
     @Param('id') id: string, 
     @Body() updateContainerDto: UpdateContainerDto,
-    @Request() req
+    @CurrentUserId() userId: number,
   ) {
-    return this.containersService.updateContainer(id, updateContainerDto, req.user.userId || req.user.sub);
+    return this.containersService.updateContainer(id, updateContainerDto, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Delete(':id')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Удалить контейнер', description: 'Удаляет контейнер. Только автор.' })
   @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   @ApiOkResponse({ description: 'Контейнер удалён' })
-  remove(@Param('id') id: string, @Request() req) {
-    return this.containersService.removeContainer(id, req.user.userId || req.user.sub);
+  remove(@Param('id') id: string, @CurrentUserId() userId: number) {
+    return this.containersService.removeContainer(id, userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Список контейнеров', description: 'Все контейнеры текущего пользователя.' })
   @ApiOkResponse({ description: 'Массив контейнеров' })
-  findAll(@Request() req) {
-    const userId = req.user.userId || req.user.sub;
+  findAll(@CurrentUserId() userId: number) {
     return this.containersService.findAll(userId);
   }
 
