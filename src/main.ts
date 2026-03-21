@@ -32,9 +32,11 @@ async function bootstrap() {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  const corsOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001,http://localhost:3000')
+  const defaultOrigins =
+    'http://localhost:3001,http://localhost:3000,https://shareplacesmap.vercel.app';
+  const corsOrigins = (process.env.CORS_ORIGINS || defaultOrigins)
     .split(',')
-    .map(o => o.trim())
+    .map((o) => o.trim())
     .filter(Boolean);
 
   app.enableCors({
@@ -42,7 +44,7 @@ async function bootstrap() {
       if (
         !origin ||
         corsOrigins.includes(origin) ||
-        LOCAL_NETWORK_PATTERNS.some(p => p.test(origin))
+        LOCAL_NETWORK_PATTERNS.some((p) => p.test(origin))
       ) {
         callback(null, true);
       } else {
@@ -50,8 +52,18 @@ async function bootstrap() {
       }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'Accept-Language',
+      'Cookie',
+      'X-Requested-With',
+      'Origin',
+    ],
+    exposedHeaders: ['Set-Cookie'],
+    maxAge: 86400,
   });
 
   const config = new DocumentBuilder()
