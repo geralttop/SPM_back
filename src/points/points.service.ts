@@ -208,6 +208,37 @@ export class PointsService {
     };
   }
 
+  /**
+   * Одна точка по id: как в ленте — своя точка или автора, на которого подписан зритель.
+   */
+  async findOneForViewer(id: string, viewerId: number): Promise<PointEntity> {
+    const point = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .leftJoin(
+        'subscriptions',
+        'subscription',
+        'subscription.followingId = point.authorId AND subscription.followerId = :viewerId',
+        { viewerId },
+      )
+      .where('point.id = :id', { id })
+      .andWhere('(point.authorId = :viewerId OR subscription.id IS NOT NULL)', {
+        viewerId,
+      })
+      .getOne();
+
+    if (!point) {
+      throw new NotFoundException(`Точка с ID ${id} не найдена`);
+    }
+
+    this.sortPhotos(point);
+    return point;
+  }
+
   async findAllWithPagination(options: {
     skip?: number;
     take?: number;

@@ -75,6 +75,20 @@ export class PointsController {
   }
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Одна точка по UUID',
+    description:
+      'Возвращает точку, если она вам доступна: вы автор или подписаны на автора (как в ленте).',
+  })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiOkResponse({ description: 'Точка с категорией, контейнером, автором, фото и commentsCount' })
+  async findOne(@CurrentUserId() userId: number, @Param('id') id: string) {
+    return this.pointsService.findOneForViewer(id, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Post(':id/photos')
   @ApiBearerAuth()
   @UseInterceptors(
