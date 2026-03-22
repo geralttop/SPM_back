@@ -1,16 +1,43 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PointEntity } from './entities/point.entity';
+import { PointPhotoEntity } from './entities/point-photo.entity';
 import { CreatePointDto } from './dto/create-point.dto';
 import { UpdatePointDto } from './dto/update-point.dto';
+import {
+  MAX_PHOTOS_PER_POINT,
+  POINT_MEDIA_ASPECT_W,
+  POINT_MEDIA_ASPECT_H,
+} from './points.constants';
 
 @Injectable()
 export class PointsService {
   constructor(
     @InjectRepository(PointEntity)
     private pointsRepository: Repository<PointEntity>,
+    @InjectRepository(PointPhotoEntity)
+    private pointPhotoRepository: Repository<PointPhotoEntity>,
   ) {}
+
+  private sortPhotos(point: PointEntity): void {
+    if (point.photos?.length) {
+      point.photos.sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+  }
+
+  private sortPhotosMany(points: PointEntity[]): void {
+    for (const p of points) {
+      this.sortPhotos(p);
+    }
+  }
 
   async createPoint(createPointDto: CreatePointDto, userId: number) {
     const { lng, lat, containerId, categoryId, ...rest } = createPointDto;
@@ -21,7 +48,6 @@ export class PointsService {
         type: 'Point',
         coordinates: [lng, lat],
       },
-      // Передаем объекты с ID, TypeORM сам свяжет их в БД
       container: { id: containerId },
       category: { id: categoryId },
       author: { id: userId },
@@ -29,17 +55,18 @@ export class PointsService {
     });
 
     const savedPoint = await this.pointsRepository.save(newPoint);
-    
-    // Возвращаем точку с загруженными relations и количеством комментариев
+
     const point = await this.pointsRepository
       .createQueryBuilder('point')
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .where('point.id = :id', { id: savedPoint.id })
       .getOne();
-    
+
+    if (point) this.sortPhotos(point);
     return point;
   }
 
@@ -49,31 +76,32 @@ export class PointsService {
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .where('point.authorId = :userId', { userId })
       .orderBy('point.createdAt', 'DESC')
       .getMany();
-    
+
+    this.sortPhotosMany(points);
     return points;
   }
 
   async updatePoint(id: string, updatePointDto: UpdatePointDto, userId: number) {
-    // Ищем точку и проверяем, что она принадлежит пользователю
-    const point = await this.pointsRepository.findOne({ 
+    const point = await this.pointsRepository.findOne({
       where: { id, authorId: userId },
-      relations: ['author', 'category', 'container']
+      relations: ['author', 'category', 'container'],
     });
-    
+
     if (!point) {
-      throw new NotFoundException(`Точка с ID ${id} не найдена или у вас нет прав на её редактирование`);
+      throw new NotFoundException(
+        `Точка с ID ${id} не найдена или у вас нет прав на её редактирование`,
+      );
     }
 
     const { lng, lat, categoryId, containerId, ...rest } = updatePointDto;
 
-    // Применяем простые поля (имя, описание)
     Object.assign(point, rest);
 
-    // Если переданы новые координаты, обновляем объект coords
     if (lng !== undefined && lat !== undefined) {
       point.coords = {
         type: 'Point',
@@ -81,78 +109,94 @@ export class PointsService {
       };
     }
 
-    // Если передана новая категория
     if (categoryId) {
       point.category = { id: categoryId } as any;
     }
 
-    // Если передан новый контейнер
     if (containerId) {
       point.container = { id: containerId } as any;
     }
 
     const savedPoint = await this.pointsRepository.save(point);
-    
-    // Возвращаем обновленную точку с загруженными relations и количеством комментариев
+
     const updatedPoint = await this.pointsRepository
       .createQueryBuilder('point')
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .where('point.id = :id', { id: savedPoint.id })
       .getOne();
-    
+
+    if (updatedPoint) this.sortPhotos(updatedPoint);
     return updatedPoint;
   }
 
   async removePoint(id: string, userId: number) {
-    const point = await this.pointsRepository.findOne({ 
+    const point = await this.pointsRepository.findOne({
       where: { id, authorId: userId },
-      relations: ['author']
+      relations: ['author', 'photos'],
     });
-    
+
     if (!point) {
-      throw new NotFoundException(`Точка с ID ${id} не найдена или у вас нет прав на её удаление`);
+      throw new NotFoundException(
+        `Точка с ID ${id} не найдена или у вас нет прав на её удаление`,
+      );
+    }
+
+    if (point.photos?.length) {
+      for (const ph of point.photos) {
+        this.unlinkPhotoFile(ph.url);
+      }
     }
 
     await this.pointsRepository.remove(point);
-    
+
     return { message: `Точка ${id} успешно удалена` };
   }
 
-  // Метод для получения всех точек (для админки или карты)
   async findAll() {
     const points = await this.pointsRepository
       .createQueryBuilder('point')
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .orderBy('point.createdAt', 'DESC')
       .getMany();
-    
+
+    this.sortPhotosMany(points);
     return points;
   }
 
-  // Метод для получения ленты точек с пагинацией (только свои точки и точки подписок)
   async getFeed(userId: number, page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
-    
-    // Используем QueryBuilder для более сложного запроса
+
     const queryBuilder = this.pointsRepository
       .createQueryBuilder('point')
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
-      .leftJoin('subscriptions', 'subscription', 'subscription.followingId = point.authorId AND subscription.followerId = :userId', { userId })
-      .where('point.authorId = :userId OR subscription.id IS NOT NULL', { userId })
+      .leftJoin(
+        'subscriptions',
+        'subscription',
+        'subscription.followingId = point.authorId AND subscription.followerId = :userId',
+        { userId },
+      )
+      .where('point.authorId = :userId OR subscription.id IS NOT NULL', {
+        userId,
+      })
       .orderBy('point.createdAt', 'DESC')
       .skip(skip)
       .take(limit);
 
     const [points, total] = await queryBuilder.getManyAndCount();
+
+    this.sortPhotosMany(points);
 
     return {
       points,
@@ -164,18 +208,23 @@ export class PointsService {
     };
   }
 
-  // Методы для админки
   async findAllWithPagination(options: {
     skip?: number;
     take?: number;
     order?: any;
     relations?: string[];
   }): Promise<[PointEntity[], number]> {
+    const rels = options.relations || [
+      'category',
+      'container',
+      'author',
+      'photos',
+    ];
     return this.pointsRepository.findAndCount({
       skip: options.skip || 0,
       take: options.take || 10,
       order: options.order || { createdAt: 'DESC' },
-      relations: options.relations || ['category', 'container', 'author'],
+      relations: rels,
     });
   }
 
@@ -185,33 +234,164 @@ export class PointsService {
       .leftJoinAndSelect('point.category', 'category')
       .leftJoinAndSelect('point.container', 'container')
       .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
       .where('point.id = :id', { id })
       .getOne();
-    
+
     if (!point) {
       throw new NotFoundException(`Точка с ID ${id} не найдена`);
     }
-    
+
+    this.sortPhotos(point);
     return point;
   }
 
-  // Админский метод обновления (без проверки владельца)
   async update(id: string, updateData: any): Promise<PointEntity> {
     const point = await this.findOne(id);
     Object.assign(point, updateData);
     return this.pointsRepository.save(point);
   }
 
-  // Админский метод создания
   async create(createData: any): Promise<PointEntity> {
     const newPoint = this.pointsRepository.create(createData);
-    return await this.pointsRepository.save(newPoint) as unknown as PointEntity;
+    return (await this.pointsRepository.save(
+      newPoint,
+    )) as unknown as PointEntity;
   }
 
-  // Админский метод удаления
   async remove(id: string): Promise<void> {
     const point = await this.findOne(id);
+    if (point.photos?.length) {
+      for (const ph of point.photos) {
+        this.unlinkPhotoFile(ph.url);
+      }
+    }
     await this.pointsRepository.remove(point);
+  }
+
+  private unlinkPhotoFile(url: string): void {
+    const relative = url.startsWith('/') ? url.slice(1) : url;
+    const full = path.join(process.cwd(), relative);
+    if (fs.existsSync(full)) {
+      fs.unlinkSync(full);
+    }
+  }
+
+  private validateDimensionPair(w?: number, h?: number): { w: number; h: number } | null {
+    if (
+      w != null &&
+      h != null &&
+      Number.isInteger(w) &&
+      Number.isInteger(h) &&
+      w >= 1 &&
+      w <= 8192 &&
+      h >= 1 &&
+      h <= 8192
+    ) {
+      return { w, h };
+    }
+    return null;
+  }
+
+  /**
+   * Загрузка фото к точке (multipart). Только автор точки.
+   */
+  async addPointPhotos(
+    pointId: string,
+    userId: number,
+    files: Express.Multer.File[],
+    dimensions: { width?: number; height?: number }[],
+  ): Promise<PointEntity> {
+    if (!files?.length) {
+      throw new BadRequestException('Файлы не переданы');
+    }
+
+    const point = await this.pointsRepository.findOne({
+      where: { id: pointId, authorId: userId },
+      relations: ['photos'],
+    });
+
+    if (!point) {
+      throw new NotFoundException(
+        'Точка не найдена или нет прав на загрузку фотографий',
+      );
+    }
+
+    const existingCount = point.photos?.length ?? 0;
+    if (existingCount + files.length > MAX_PHOTOS_PER_POINT) {
+      throw new BadRequestException(
+        `Не более ${MAX_PHOTOS_PER_POINT} фотографий на точку`,
+      );
+    }
+
+    let maxOrder = 0;
+    if (point.photos?.length) {
+      maxOrder = Math.max(...point.photos.map((p) => p.sortOrder));
+    }
+
+    const needAspect = point.mediaAspectW == null || point.mediaAspectH == null;
+
+    if (needAspect) {
+      point.mediaAspectW = POINT_MEDIA_ASPECT_W;
+      point.mediaAspectH = POINT_MEDIA_ASPECT_H;
+      await this.pointsRepository.save(point);
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const url = `/uploads/points/${file.filename}`;
+      const dim = this.validateDimensionPair(
+        dimensions[i]?.width,
+        dimensions[i]?.height,
+      );
+      const row = this.pointPhotoRepository.create({
+        pointId: point.id,
+        url,
+        sortOrder: maxOrder + 1 + i,
+        width: dim?.w ?? null,
+        height: dim?.h ?? null,
+      });
+      await this.pointPhotoRepository.save(row);
+    }
+
+    return this.findOne(pointId);
+  }
+
+  async deletePointPhoto(
+    pointId: string,
+    photoId: string,
+    userId: number,
+  ): Promise<PointEntity> {
+    const owned = await this.pointsRepository.findOne({
+      where: { id: pointId, authorId: userId },
+    });
+    if (!owned) {
+      throw new ForbiddenException('Нет прав на удаление фотографии этой точки');
+    }
+
+    const photo = await this.pointPhotoRepository.findOne({
+      where: { id: photoId, pointId },
+    });
+
+    if (!photo) {
+      throw new NotFoundException('Фотография не найдена');
+    }
+
+    this.unlinkPhotoFile(photo.url);
+    await this.pointPhotoRepository.remove(photo);
+
+    const remaining = await this.pointPhotoRepository.count({
+      where: { pointId },
+    });
+
+    if (remaining === 0) {
+      await this.pointsRepository.update(pointId, {
+        mediaAspectW: null,
+        mediaAspectH: null,
+      });
+    }
+
+    return this.findOne(pointId);
   }
 }

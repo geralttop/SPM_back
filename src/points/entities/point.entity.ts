@@ -5,6 +5,7 @@ import { Container } from '../../containers/entities/container.entity';
 import { User } from '../../users/user.entity';
 import { Favorite } from './favorite.entity';
 import { Comment } from './comment.entity';
+import { PointPhotoEntity } from './point-photo.entity';
 
 @Entity('points')
 export class PointEntity {
@@ -19,6 +20,13 @@ export class PointEntity {
 
   @Column({ nullable: true })
   address: string;
+
+  /** Соотношение сторон медиа-блока (карта + фото), из первого загруженного снимка */
+  @Column({ type: 'int', nullable: true })
+  mediaAspectW: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  mediaAspectH: number | null;
 
   // Поле для PostGIS
   @Index({ spatial: true })
@@ -49,4 +57,7 @@ export class PointEntity {
 
   @OneToMany(() => Comment, (comment) => comment.point)
   comments: Comment[];
+
+  @OneToMany(() => PointPhotoEntity, (photo) => photo.point)
+  photos: PointPhotoEntity[];
 }

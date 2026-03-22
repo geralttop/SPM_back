@@ -1,4 +1,4 @@
-import { IsArray, IsString, IsOptional, ArrayMinSize } from 'class-validator';
+import { IsArray, IsString, IsOptional, ArrayMinSize, IsIn } from 'class-validator';
 
 export class UpdateMapSettingsDto {
   @IsOptional()
@@ -10,4 +10,8 @@ export class UpdateMapSettingsDto {
   @IsOptional()
   @IsString()
   defaultMapStyle?: string;
+
+  @IsOptional()
+  @IsIn(['map', 'photos'])
+  pointCardInitialView?: 'map' | 'photos';
 }

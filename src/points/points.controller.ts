@@ -1,11 +1,38 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Patch, Param, Delete, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiQuery, ApiBody, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { PointsService } from './points.service';
 import { CreatePointDto } from './dto/create-point.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
 import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { UpdatePointDto } from './dto/update-point.dto';
+import { FileUploadService } from '../auth/services/file-upload.service';
+import { MAX_PHOTOS_PER_POINT } from './points.constants';
 
 @ApiTags('Точки на карте')
 @Controller('points')
@@ -45,6 +72,62 @@ export class PointsController {
     const pageNum = page ? parseInt(page) : 1;
     const limitNum = limit ? parseInt(limit) : 10;
     return this.pointsService.getFeed(userId, pageNum, limitNum);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Post(':id/photos')
+  @ApiBearerAuth()
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_PHOTOS_PER_POINT, {
+      storage: FileUploadService.pointStorage,
+      fileFilter: FileUploadService.pointFileFilter,
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Загрузить фотографии к точке',
+    description:
+      'Поле files — файлы изображений. Опционально dimensions — JSON-массив { width, height } в том же порядке.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiOkResponse({ description: 'Точка с обновлённым списком фото' })
+  async uploadPhotos(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('dimensions') dimensionsRaw?: string,
+  ) {
+    let dimensions: { width?: number; height?: number }[] = [];
+    if (dimensionsRaw) {
+      try {
+        const parsed = JSON.parse(dimensionsRaw) as unknown;
+        if (Array.isArray(parsed)) {
+          dimensions = parsed.map((item: { width?: number; height?: number }) => ({
+            width: typeof item?.width === 'number' ? item.width : undefined,
+            height: typeof item?.height === 'number' ? item.height : undefined,
+          }));
+        }
+      } catch {
+        throw new BadRequestException('Некорректный JSON в dimensions');
+      }
+    }
+    return this.pointsService.addPointPhotos(id, userId, files || [], dimensions);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Delete(':id/photos/:photoId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Удалить фотографию точки', description: 'Только автор точки.' })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiParam({ name: 'photoId', description: 'UUID фотографии' })
+  @ApiOkResponse({ description: 'Точка после удаления фото' })
+  async deletePhoto(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+    @Param('photoId') photoId: string,
+  ) {
+    return this.pointsService.deletePointPhoto(id, photoId, userId);
   }
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)

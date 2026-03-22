@@ -27,4 +27,8 @@ export class UserSettings {
 
   @Column({ type: 'varchar', nullable: true })
   defaultMapStyle: string | null;
+
+  /** Что показывать первым в карточке точки: карта или фотографии */
+  @Column({ type: 'varchar', length: 16, nullable: true, default: 'map' })
+  pointCardInitialView: 'map' | 'photos' | null;
 }

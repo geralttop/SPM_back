@@ -1,18 +1,18 @@
-import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
+/**
+ * Колонка avatar могла уже появиться через synchronize — не падаем при повторном запуске.
+ */
 export class AddAvatarToUsers1771960000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.addColumn(
-      'users',
-      new TableColumn({
-        name: 'avatar',
-        type: 'varchar',
-        isNullable: true,
-      }),
-    );
+    await queryRunner.query(`
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar" varchar
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn('users', 'avatar');
+    await queryRunner.query(`
+      ALTER TABLE "users" DROP COLUMN IF EXISTS "avatar"
+    `);
   }
 }

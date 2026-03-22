@@ -32,6 +32,7 @@ import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { FileUploadService } from './services/file-upload.service';
+import { UpdateMapSettingsDto } from '../users/dto/update-map-settings.dto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -332,10 +333,11 @@ export class AuthController {
   })
   async getMapSettings(@CurrentUserId() userId: number) {
     const settings = await this.usersService.getSettings(userId);
-    
+
     return {
       availableMapStyles: settings?.availableMapStyles || ['openstreet', 'openstreet3d', 'satellite', 'carto'],
       defaultMapStyle: settings?.defaultMapStyle || 'openstreet',
+      pointCardInitialView: (settings?.pointCardInitialView as 'map' | 'photos') || 'map',
     };
   }
 
@@ -363,27 +365,38 @@ export class AuthController {
     } 
   })
   async updateMapSettings(
-    @CurrentUserId() userId: number, 
-    @Body() body: { availableMapStyles?: string[]; defaultMapStyle?: string }
+    @CurrentUserId() userId: number,
+    @Body() body: UpdateMapSettingsDto,
   ) {
     if (body.availableMapStyles && body.availableMapStyles.length === 0) {
       throw new BadRequestException('At least one map style must be selected');
     }
-    
+
     // Валидация: стиль по умолчанию должен быть в списке доступных
     if (body.defaultMapStyle && body.availableMapStyles && !body.availableMapStyles.includes(body.defaultMapStyle)) {
       throw new BadRequestException('Default map style must be in available map styles');
     }
-    
-    await this.usersService.updateSettings(userId, {
-      availableMapStyles: body.availableMapStyles,
-      defaultMapStyle: body.defaultMapStyle,
-    });
-    
+
+    const patch: Record<string, unknown> = {};
+    if (body.availableMapStyles !== undefined) {
+      patch.availableMapStyles = body.availableMapStyles;
+    }
+    if (body.defaultMapStyle !== undefined) {
+      patch.defaultMapStyle = body.defaultMapStyle;
+    }
+    if (body.pointCardInitialView !== undefined) {
+      patch.pointCardInitialView = body.pointCardInitialView;
+    }
+
+    await this.usersService.updateSettings(userId, patch as any);
+
+    const settings = await this.usersService.getSettings(userId);
+
     return {
       message: 'Настройки карт обновлены',
-      availableMapStyles: body.availableMapStyles,
-      defaultMapStyle: body.defaultMapStyle,
+      availableMapStyles: settings?.availableMapStyles || ['openstreet', 'openstreet3d', 'satellite', 'carto'],
+      defaultMapStyle: settings?.defaultMapStyle || 'openstreet',
+      pointCardInitialView: (settings?.pointCardInitialView as 'map' | 'photos') || 'map',
     };
   }
 
