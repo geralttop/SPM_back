@@ -17,7 +17,7 @@ export class ContainersController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать контейнер', description: 'Контейнер — группа точек (например, «Мои места»).' })
   @ApiBody({ type: CreateContainerDto })
-  @ApiCreatedResponse({ description: 'Контейнер создан', schema: { example: { id: 'uuid-...', title: 'Мои любимые места', description: 'Подборка кафе', authorId: 1 } } })
+  @ApiCreatedResponse({ description: 'Контейнер создан', schema: { example: { id: 'uuid-...', title: 'Мои любимые места', description: 'Подборка кафе', color: '#3B82F6', authorId: 1 } } })
   @ApiBadRequestResponse({ description: 'Невалидные данные' })
   async create(@CurrentUserId() userId: number, @Body() createContainerDto: CreateContainerDto) {
     return this.containersService.createContainer(createContainerDto, userId);
@@ -26,7 +26,7 @@ export class ContainersController {
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Patch(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Обновить контейнер', description: 'Обновляет название и/или описание. Только автор.' })
+  @ApiOperation({ summary: 'Обновить контейнер', description: 'Обновляет название, описание и/или цвет. Только автор.' })
   @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   @ApiBody({ type: UpdateContainerDto })
   @ApiOkResponse({ description: 'Контейнер обновлён' })

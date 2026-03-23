@@ -18,6 +18,7 @@ export class ContainersService {
     const container = this.containerRepository.create({
       title: createContainerDto.title,
       description: createContainerDto.description,
+      color: createContainerDto.color,
       // Мы передаем объект с ID, чтобы TypeORM понял связь ManyToOne
       author: { id: userId } as any,
       authorId: userId,

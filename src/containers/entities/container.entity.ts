@@ -13,6 +13,9 @@ export class Container {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ type: 'varchar', length: 7, default: '#3B82F6' })
+  color: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
