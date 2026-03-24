@@ -283,8 +283,39 @@ export class AuthController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get('user/username/:username')
+  @ApiOperation({
+    summary: 'Профиль по username',
+    description: 'Возвращает публичные данные пользователя по имени пользователя (для URL вида /user/:username).',
+  })
+  @ApiParam({ name: 'username', example: 'geralt', description: 'Имя пользователя' })
+  @ApiOkResponse({
+    description: 'Данные пользователя',
+    schema: { example: { id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак', avatar: '/uploads/...' } },
+  })
+  @ApiBadRequestResponse({ description: 'Пользователь не найден' })
+  async getUserByUsername(@Param('username') username: string) {
+    const normalized = decodeURIComponent(username.trim());
+    const user = await this.usersService.findByUsername(normalized);
+
+    if (!user) {
+      throw new BadRequestException('Пользователь не найден');
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      bio: user.bio,
+      avatar: user.avatar,
+    };
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get('user/:id')
-  @ApiOperation({ summary: 'Профиль по ID', description: 'Возвращает публичные данные пользователя по ID.' })
+  @ApiOperation({ summary: 'Профиль по ID', description: 'Возвращает публичные данные пользователя по ID (устаревший вариант; предпочтительно user/username/:username).' })
   @ApiParam({ name: 'id', example: '1', description: 'ID пользователя' })
   @ApiOkResponse({ description: 'Данные пользователя', schema: { example: { id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак' } } })
   @ApiBadRequestResponse({ description: 'Пользователь не найден' })
