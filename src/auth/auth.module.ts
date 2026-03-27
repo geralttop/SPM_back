@@ -22,7 +22,7 @@ import { UserBlock } from 'src/users/entities/user-block.entity';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_ACCESS_SECRET'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: '30m' },
       }),
       inject: [ConfigService],
     }),

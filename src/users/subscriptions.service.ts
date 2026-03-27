@@ -69,6 +69,7 @@ export class SubscriptionsService {
       username: sub.follower.username,
       email: sub.follower.email,
       bio: sub.follower.bio,
+      avatar: sub.follower.avatar,
     }));
   }
 
@@ -83,6 +84,7 @@ export class SubscriptionsService {
       username: sub.following.username,
       email: sub.following.email,
       bio: sub.following.bio,
+      avatar: sub.following.avatar,
     }));
   }
 
