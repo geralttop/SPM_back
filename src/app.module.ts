@@ -12,6 +12,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { ContainersModule } from './containers/containers.module';
 import { AdminModule } from './admin/admin.module';
 import { ReportsModule } from './reports/reports.module';
+import { ZlataModule } from './zlata/zlata.module';
 import { SeedService } from './common/services/seed.service';
 import { Container } from './containers/entities/container.entity';
 import { Category } from './categories/entities/category.entity';
@@ -88,7 +89,8 @@ import { Category } from './categories/entities/category.entity';
     ContainersModule,
     AdminModule,
     ReportsModule,
-    
+    ZlataModule,
+
     TypeOrmModule.forFeature([Category, Container]),
   ],
   providers: [

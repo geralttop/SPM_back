@@ -65,5 +65,6 @@ backups/
 uploads/*
 !uploads/.gitkeep
 !uploads/avatars/.gitkeep
+!uploads/zlata/.gitkeep
 
 docs/
