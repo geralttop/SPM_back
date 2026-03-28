@@ -66,5 +66,6 @@ uploads/*
 !uploads/.gitkeep
 !uploads/avatars/.gitkeep
 !uploads/zlata/.gitkeep
+!uploads/vinland/.gitkeep
 
 docs/
