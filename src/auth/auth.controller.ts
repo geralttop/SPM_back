@@ -32,6 +32,7 @@ import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { FileUploadService } from './services/file-upload.service';
+import { BioHistoryService } from '../users/bio-history.service';
 import { UpdateMapSettingsDto } from '../users/dto/update-map-settings.dto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -46,6 +47,7 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService, // 2. Добавьте это поле сюда
     private readonly cookieService: CookieService,
+    private readonly bioHistoryService: BioHistoryService,
   ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -244,6 +246,53 @@ export class AuthController {
   @ApiBadRequestResponse({ description: 'Невалидные данные или username занят' })
   async updateProfile(@CurrentUserId() userId: number, @Body() body: UpdateProfileDto) {
     return this.usersService.update(userId, body);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get('bio-history')
+  @ApiOperation({ summary: 'История биографии (своя)', description: 'Снимки bio при сохранении профиля, новые сверху.' })
+  @ApiOkResponse({ description: 'Список записей', schema: { example: [{ id: 1, text: 'Привет', createdAt: '2025-01-01T12:00:00.000Z' }] } })
+  async getMyBioHistory(@CurrentUserId() userId: number) {
+    return this.bioHistoryService.findByUserId(userId);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Delete('bio-history/:id')
+  @ApiOperation({ summary: 'Удалить запись из истории биографии', description: 'Только своя запись.' })
+  @ApiParam({ name: 'id', example: 1 })
+  @ApiOkResponse({ description: 'Удалено', schema: { example: { message: 'Запись удалена' } } })
+  async deleteBioHistoryEntry(
+    @CurrentUserId() userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    await this.bioHistoryService.deleteByIdForUser(id, userId);
+    return { message: 'Запись удалена' };
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get('user/username/:username/bio-history')
+  @ApiOperation({
+    summary: 'История биографии (по username)',
+    description: 'Публичный просмотр истории bio пользователя.',
+  })
+  @ApiParam({ name: 'username', example: 'geralt' })
+  @ApiOkResponse({
+    description: 'Список записей',
+    schema: { example: [{ id: 1, text: 'Привет', createdAt: '2025-01-01T12:00:00.000Z' }] },
+  })
+  async getBioHistoryByUsername(@Param('username') username: string) {
+    const normalized = decodeURIComponent(username.trim());
+    const user = await this.usersService.findByUsername(normalized);
+    if (!user) {
+      throw new BadRequestException('Пользователь не найден');
+    }
+    return this.bioHistoryService.findByUserId(user.id);
   }
 
   @SkipThrottle()

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { BioHistoryService } from './bio-history.service';
 import { UserVerification } from './entities/user-verification.entity';
 import { UserSecurity } from './entities/user-security.entity';
 import { UserSettings } from './entities/user-settings.entity';
@@ -22,6 +23,7 @@ export class UsersService {
     private settingsRepository: Repository<UserSettings>,
     @InjectRepository(UserBlock)
     private blockRepository: Repository<UserBlock>,
+    private readonly bioHistoryService: BioHistoryService,
   ) {}
 
   async create(email: string, passwordHash: string, username: string, code: string): Promise<User> {
@@ -173,11 +175,24 @@ export class UsersService {
     if (!user) {
       throw new BadRequestException(`Пользователь с ID ${id} не найден`);
     }
-    
-    // Копируем новые атрибуты (например, hashedRefreshToken) в объект пользователя
+
+    const previousBio = user.bio;
     Object.assign(user, attrs);
-    
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+
+    if (attrs.bio !== undefined) {
+      const oldNorm = this.normalizeBio(previousBio);
+      const newNorm = this.normalizeBio(attrs.bio);
+      if (oldNorm !== newNorm) {
+        await this.bioHistoryService.record(id, saved.bio ?? '');
+      }
+    }
+
+    return saved;
+  }
+
+  private normalizeBio(bio: string | null | undefined): string {
+    return (bio ?? '').trim();
   }
 
   // Метод для поиска пользователей по username

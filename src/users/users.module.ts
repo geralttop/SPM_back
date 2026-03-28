@@ -7,8 +7,10 @@ import { UserVerification } from './entities/user-verification.entity';
 import { UserSecurity } from './entities/user-security.entity';
 import { UserSettings } from './entities/user-settings.entity';
 import { UserBlock } from './entities/user-block.entity';
+import { UserBioHistory } from './entities/user-bio-history.entity';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
+import { BioHistoryService } from './bio-history.service';
 
 @Module({
   imports: [
@@ -19,10 +21,11 @@ import { SubscriptionsController } from './subscriptions.controller';
       UserSecurity,
       UserSettings,
       UserBlock,
+      UserBioHistory,
     ]),
   ],
-  providers: [UsersService, SubscriptionsService],
+  providers: [UsersService, SubscriptionsService, BioHistoryService],
   controllers: [SubscriptionsController],
-  exports: [UsersService, SubscriptionsService, TypeOrmModule],
+  exports: [UsersService, SubscriptionsService, BioHistoryService, TypeOrmModule],
 })
 export class UsersModule {}

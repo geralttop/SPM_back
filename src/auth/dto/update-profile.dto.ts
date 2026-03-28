@@ -9,9 +9,9 @@ export class UpdateProfileDto {
   @MaxLength(30)
   username?: string;
 
-  @ApiProperty({ example: 'Ведьмак из Каэр Морхена', description: 'Краткая информация о себе (до 1000 символов)', required: false })
+  @ApiProperty({ example: 'Ведьмак из Каэр Морхена', description: 'Краткая информация о себе (до 500 символов)', required: false })
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(500)
   bio?: string;
 }
