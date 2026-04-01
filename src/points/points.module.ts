@@ -12,6 +12,9 @@ import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
 import { User } from '../users/user.entity';
 import { UserBlock } from '../users/entities/user-block.entity';
+import { PointHistoryEntity } from './entities/point-history.entity';
+import { PointHistoryPhotoEntity } from './entities/point-history-photo.entity';
+import { PointHistoryService } from './point-history.service';
 
 @Module({
   imports: [
@@ -22,10 +25,12 @@ import { UserBlock } from '../users/entities/user-block.entity';
       Comment,
       User,
       UserBlock,
+      PointHistoryEntity,
+      PointHistoryPhotoEntity,
     ]),
   ],
   controllers: [PointsController, FavoritesController, CommentsController],
-  providers: [PointsService, FavoritesService, CommentsService],
-  exports: [PointsService, FavoritesService, CommentsService, TypeOrmModule],
+  providers: [PointsService, FavoritesService, CommentsService, PointHistoryService],
+  exports: [PointsService, FavoritesService, CommentsService, PointHistoryService, TypeOrmModule],
 })
 export class PointsModule {}

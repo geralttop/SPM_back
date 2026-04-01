@@ -33,11 +33,15 @@ import { CurrentUserId } from '../common/decorators/current-user-id.decorator';
 import { UpdatePointDto } from './dto/update-point.dto';
 import { FileUploadService } from '../auth/services/file-upload.service';
 import { MAX_PHOTOS_PER_POINT } from './points.constants';
+import { PointHistoryService } from './point-history.service';
 
 @ApiTags('Точки на карте')
 @Controller('points')
 export class PointsController {
-  constructor(private readonly pointsService: PointsService) {}
+  constructor(
+    private readonly pointsService: PointsService,
+    private readonly pointHistoryService: PointHistoryService,
+  ) {}
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Post()
@@ -86,6 +90,57 @@ export class PointsController {
   @ApiOkResponse({ description: 'Точка с категорией, контейнером, автором, фото и commentsCount' })
   async findOne(@CurrentUserId() userId: number, @Param('id') id: string) {
     return this.pointsService.findOneForViewer(id, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get(':id/history')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'История точки',
+    description:
+      'Возвращает историю точки. Доступ такой же, как к самой точке: вы автор или подписаны на автора.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiOkResponse({ description: 'Массив записей истории (DESC по createdAt)' })
+  async getHistory(@CurrentUserId() userId: number, @Param('id') id: string) {
+    await this.pointsService.findOneForViewer(id, userId);
+    return this.pointHistoryService.list(id);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Post(':id/history')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Добавить запись истории точки',
+    description:
+      'Создаёт запись истории из текущего состояния точки. Только автор точки.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiCreatedResponse({ description: 'Созданная запись истории' })
+  async createHistoryEntry(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+  ) {
+    return this.pointHistoryService.createSnapshot(id, userId);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Delete(':id/history/:historyId')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Удалить запись истории точки',
+    description: 'Удаляет запись истории. Только автор точки.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiParam({ name: 'historyId', description: 'UUID записи истории' })
+  @ApiOkResponse({ description: 'Запись истории удалена' })
+  async deleteHistoryEntry(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+    @Param('historyId') historyId: string,
+  ) {
+    await this.pointHistoryService.deleteEntry(id, historyId, userId);
+    return { ok: true };
   }
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
