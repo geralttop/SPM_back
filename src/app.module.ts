@@ -14,6 +14,7 @@ import { AdminModule } from './admin/admin.module';
 import { ReportsModule } from './reports/reports.module';
 import { ZlataModule } from './zlata/zlata.module';
 import { VinlandModule } from './vinland/vinland.module';
+import { ChatModule } from './chat/chat.module';
 import { SeedService } from './common/services/seed.service';
 import { Container } from './containers/entities/container.entity';
 import { Category } from './categories/entities/category.entity';
@@ -92,6 +93,7 @@ import { Category } from './categories/entities/category.entity';
     ReportsModule,
     ZlataModule,
     VinlandModule,
+    ChatModule,
 
     TypeOrmModule.forFeature([Category, Container]),
   ],
