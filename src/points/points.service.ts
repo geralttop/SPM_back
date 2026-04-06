@@ -17,6 +17,7 @@ import {
   POINT_MEDIA_ASPECT_W,
   POINT_MEDIA_ASPECT_H,
 } from './points.constants';
+import { toPublicAuthor } from '../users/user-public.mapper';
 
 @Injectable()
 export class PointsService {
@@ -37,6 +38,50 @@ export class PointsService {
     for (const p of points) {
       this.sortPhotos(p);
     }
+  }
+
+  /** Подсчёт созданных точек по списку authorId (для бейджей и публичного профиля). */
+  async getCreatedPointsCountsByAuthorIds(
+    authorIds: number[],
+  ): Promise<Map<number, number>> {
+    const unique = [...new Set(authorIds.filter((id) => id != null))];
+    const map = new Map<number, number>();
+    for (const id of unique) {
+      map.set(id, 0);
+    }
+    if (!unique.length) {
+      return map;
+    }
+    const rows = await this.pointsRepository
+      .createQueryBuilder('point')
+      .select('point.authorId', 'authorId')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('point.authorId IN (:...ids)', { ids: unique })
+      .groupBy('point.authorId')
+      .getRawMany();
+    for (const row of rows) {
+      map.set(Number(row.authorId), Number(row.cnt));
+    }
+    return map;
+  }
+
+  private applyPublicAuthorsToPoints(
+    points: PointEntity[],
+    countMap: Map<number, number>,
+  ): void {
+    for (const p of points) {
+      if (p.author) {
+        const c = countMap.get(p.author.id) ?? 0;
+        (p as unknown as { author: ReturnType<typeof toPublicAuthor> }).author =
+          toPublicAuthor(p.author, c);
+      }
+    }
+  }
+
+  async enrichPointsWithPublicAuthors(points: PointEntity[]): Promise<void> {
+    const ids = points.map((p) => p.authorId).filter((id) => id != null);
+    const countMap = await this.getCreatedPointsCountsByAuthorIds(ids);
+    this.applyPublicAuthorsToPoints(points, countMap);
   }
 
   async createPoint(createPointDto: CreatePointDto, userId: number) {
@@ -67,6 +112,7 @@ export class PointsService {
       .getOne();
 
     if (point) this.sortPhotos(point);
+    if (point) await this.enrichPointsWithPublicAuthors([point]);
     return point;
   }
 
@@ -83,6 +129,7 @@ export class PointsService {
       .getMany();
 
     this.sortPhotosMany(points);
+    await this.enrichPointsWithPublicAuthors(points);
     return points;
   }
 
@@ -130,6 +177,7 @@ export class PointsService {
       .getOne();
 
     if (updatedPoint) this.sortPhotos(updatedPoint);
+    if (updatedPoint) await this.enrichPointsWithPublicAuthors([updatedPoint]);
     return updatedPoint;
   }
 
@@ -168,6 +216,7 @@ export class PointsService {
       .getMany();
 
     this.sortPhotosMany(points);
+    await this.enrichPointsWithPublicAuthors(points);
     return points;
   }
 
@@ -197,6 +246,7 @@ export class PointsService {
     const [points, total] = await queryBuilder.getManyAndCount();
 
     this.sortPhotosMany(points);
+    await this.enrichPointsWithPublicAuthors(points);
 
     return {
       points,
@@ -222,6 +272,7 @@ export class PointsService {
       .getMany();
 
     this.sortPhotosMany(points);
+    await this.enrichPointsWithPublicAuthors(points);
     return points;
   }
 
@@ -268,6 +319,7 @@ export class PointsService {
 
     if (point.authorId === viewerId) {
       this.sortPhotos(point);
+      await this.enrichPointsWithPublicAuthors([point]);
       return point;
     }
 
@@ -277,12 +329,14 @@ export class PointsService {
       point.container.authorId != null
     ) {
       this.sortPhotos(point);
+      await this.enrichPointsWithPublicAuthors([point]);
       return point;
     }
 
     const hasSub = await this.viewerHasSubscription(viewerId, point.authorId);
     if (hasSub) {
       this.sortPhotos(point);
+      await this.enrichPointsWithPublicAuthors([point]);
       return point;
     }
 
@@ -301,12 +355,15 @@ export class PointsService {
       'author',
       'photos',
     ];
-    return this.pointsRepository.findAndCount({
+    const [points, total] = await this.pointsRepository.findAndCount({
       skip: options.skip || 0,
       take: options.take || 10,
       order: options.order || { createdAt: 'DESC' },
       relations: rels,
     });
+    this.sortPhotosMany(points);
+    await this.enrichPointsWithPublicAuthors(points);
+    return [points, total];
   }
 
   async findOne(id: string): Promise<PointEntity> {
@@ -325,20 +382,29 @@ export class PointsService {
     }
 
     this.sortPhotos(point);
+    await this.enrichPointsWithPublicAuthors([point]);
     return point;
   }
 
   async update(id: string, updateData: any): Promise<PointEntity> {
-    const point = await this.findOne(id);
+    const point = await this.pointsRepository.findOne({
+      where: { id },
+      relations: ['author', 'category', 'container', 'photos'],
+    });
+    if (!point) {
+      throw new NotFoundException(`Точка с ID ${id} не найдена`);
+    }
     Object.assign(point, updateData);
-    return this.pointsRepository.save(point);
+    await this.pointsRepository.save(point);
+    return this.findOne(id);
   }
 
   async create(createData: any): Promise<PointEntity> {
     const newPoint = this.pointsRepository.create(createData);
-    return (await this.pointsRepository.save(
+    const saved = (await this.pointsRepository.save(
       newPoint,
     )) as unknown as PointEntity;
+    return this.findOne(saved.id);
   }
 
   async remove(id: string): Promise<void> {

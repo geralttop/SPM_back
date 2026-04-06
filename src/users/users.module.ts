@@ -11,9 +11,11 @@ import { UserBioHistory } from './entities/user-bio-history.entity';
 import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { BioHistoryService } from './bio-history.service';
+import { PointsModule } from '../points/points.module';
 
 @Module({
   imports: [
+    PointsModule,
     TypeOrmModule.forFeature([
       User,
       Subscription,

@@ -36,6 +36,7 @@ import { BioHistoryService } from '../users/bio-history.service';
 import { UpdateMapSettingsDto } from '../users/dto/update-map-settings.dto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PointsService } from '../points/points.service';
 
 @ApiTags('Авторизация')
 @Controller('auth')
@@ -48,6 +49,7 @@ export class AuthController {
     private readonly jwtService: JwtService, // 2. Добавьте это поле сюда
     private readonly cookieService: CookieService,
     private readonly bioHistoryService: BioHistoryService,
+    private readonly pointsService: PointsService,
   ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -86,6 +88,10 @@ export class AuthController {
     }
 
     const settings = await this.usersService.getSettings(user.id);
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds([
+      user.id,
+    ]);
+    const createdPointsCount = countMap.get(user.id) ?? 0;
 
     // Возвращаем актуальные данные профиля
     return {
@@ -97,6 +103,7 @@ export class AuthController {
       bio: user.bio,
       avatar: user.avatar,
       sidebarOrder: settings?.sidebarOrder || null,
+      createdPointsCount,
     };
   }
 
@@ -319,13 +326,18 @@ export class AuthController {
   @ApiOkResponse({ description: 'Список пользователей', schema: { example: [{ id: 1, username: 'geralt', email: 'witcher@kaermorhen.com', bio: 'Ведьмак' }] } })
   async searchUsers(@Query('q') query: string) {
     const users = await this.usersService.searchByUsername(query);
-    
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds(
+      users.map((u) => u.id),
+    );
+
     // Возвращаем только безопасные данные
-    return users.map(user => ({
+    return users.map((user) => ({
       id: user.id,
       username: user.username,
       email: user.email,
       bio: user.bio,
+      role: user.role,
+      createdPointsCount: countMap.get(user.id) ?? 0,
     }));
   }
 
@@ -351,12 +363,18 @@ export class AuthController {
       throw new BadRequestException('Пользователь не найден');
     }
 
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds([
+      user.id,
+    ]);
+
     return {
       id: user.id,
       username: user.username,
       email: user.email,
       bio: user.bio,
       avatar: user.avatar,
+      role: user.role,
+      createdPointsCount: countMap.get(user.id) ?? 0,
     };
   }
 
@@ -374,7 +392,11 @@ export class AuthController {
     if (!user) {
       throw new BadRequestException('Пользователь не найден');
     }
-    
+
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds([
+      user.id,
+    ]);
+
     // Возвращаем только безопасные данные
     return {
       id: user.id,
@@ -382,6 +404,8 @@ export class AuthController {
       email: user.email,
       bio: user.bio,
       avatar: user.avatar,
+      role: user.role,
+      createdPointsCount: countMap.get(user.id) ?? 0,
     };
   }
 

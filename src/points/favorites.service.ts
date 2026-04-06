@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Favorite } from './entities/favorite.entity';
 import { PointEntity } from './entities/point.entity';
 import { User } from '../users/user.entity';
+import { PointsService } from './points.service';
 
 @Injectable()
 export class FavoritesService {
@@ -12,6 +13,7 @@ export class FavoritesService {
     private favoritesRepository: Repository<Favorite>,
     @InjectRepository(PointEntity)
     private pointsRepository: Repository<PointEntity>,
+    private readonly pointsService: PointsService,
   ) {}
 
   async addToFavorites(userId: number, pointId: string): Promise<void> {
@@ -67,6 +69,9 @@ export class FavoritesService {
       .where('favorite.userId = :userId', { userId })
       .orderBy('favorite.createdAt', 'DESC')
       .getMany();
+
+    const points = favorites.map((f) => f.point);
+    await this.pointsService.enrichPointsWithPublicAuthors(points);
 
     return favorites.map((fav) => ({
       id: fav.point.id,

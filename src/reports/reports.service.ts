@@ -8,6 +8,8 @@ import { User } from 'src/users/user.entity';
 import { UserBlock } from 'src/users/entities/user-block.entity';
 import { PointEntity } from 'src/points/entities/point.entity';
 import { Comment } from 'src/points/entities/comment.entity';
+import { PointsService } from '../points/points.service';
+import { toPublicAuthor } from '../users/user-public.mapper';
 
 @Injectable()
 export class ReportsService {
@@ -24,7 +26,50 @@ export class ReportsService {
     private pointsRepository: Repository<PointEntity>,
     @InjectRepository(Comment)
     private commentsRepository: Repository<Comment>,
+    private readonly pointsService: PointsService,
   ) {}
+
+  /** Публичные авторы у вложенных точки/комментария (без password в JSON). */
+  private async enrichReportNestedAuthors(reports: Report[]): Promise<void> {
+    const authorIds: number[] = [];
+    for (const r of reports) {
+      if (r.point?.authorId != null) authorIds.push(r.point.authorId);
+      if (r.comment?.authorId != null) authorIds.push(r.comment.authorId);
+    }
+    const countMap =
+      await this.pointsService.getCreatedPointsCountsByAuthorIds(authorIds);
+    for (const r of reports) {
+      if (r.point?.author) {
+        const cnt = countMap.get(r.point.authorId) ?? 0;
+        (r.point as unknown as { author: ReturnType<typeof toPublicAuthor> }).author =
+          toPublicAuthor(r.point.author, cnt);
+      }
+      if (r.comment?.author) {
+        const cnt = countMap.get(r.comment.authorId) ?? 0;
+        (r.comment as unknown as { author: ReturnType<typeof toPublicAuthor> }).author =
+          toPublicAuthor(r.comment.author, cnt);
+      }
+    }
+  }
+
+  private async loadReportEntity(id: number): Promise<Report> {
+    const report = await this.reportsRepository.findOne({
+      where: { id },
+      relations: [
+        'reporter',
+        'point',
+        'point.author',
+        'comment',
+        'comment.author',
+        'reportedUser',
+        'reviewedBy',
+      ],
+    });
+    if (!report) {
+      throw new NotFoundException('Жалоба не найдена');
+    }
+    return report;
+  }
 
   async create(createReportDto: CreateReportDto, reporterId: number): Promise<Report> {
     // Проверяем, что объект жалобы существует
@@ -74,6 +119,8 @@ export class ReportsService {
       .take(limit)
       .getManyAndCount();
 
+    await this.enrichReportNestedAuthors(reports);
+
     return {
       reports,
       total,
@@ -84,44 +131,30 @@ export class ReportsService {
   }
 
   async findOne(id: number): Promise<Report> {
-    const report = await this.reportsRepository.findOne({
-      where: { id },
-      relations: [
-        'reporter', 
-        'point', 
-        'point.author',
-        'comment', 
-        'comment.author',
-        'reportedUser', 
-        'reviewedBy'
-      ],
-    });
-
-    if (!report) {
-      throw new NotFoundException('Жалоба не найдена');
-    }
-
+    const report = await this.loadReportEntity(id);
+    await this.enrichReportNestedAuthors([report]);
     return report;
   }
 
   async update(id: number, updateReportDto: UpdateReportDto, adminId: number): Promise<Report> {
-    const report = await this.findOne(id);
+    const report = await this.loadReportEntity(id);
 
     Object.assign(report, updateReportDto);
     report.reviewedById = adminId;
 
-    return this.reportsRepository.save(report);
+    await this.reportsRepository.save(report);
+    return this.findOne(id);
   }
 
   async remove(id: number): Promise<void> {
-    const report = await this.findOne(id);
+    const report = await this.loadReportEntity(id);
     await this.reportsRepository.remove(report);
   }
 
   // Действия админа по жалобам
   async resolveReport(id: number, adminId: number, action: 'block' | 'dismiss', adminNotes?: string): Promise<Report> {
     try {
-      const report = await this.findOne(id);
+      const report = await this.loadReportEntity(id);
 
       this.logger.log(`Resolving report ${id} with action: ${action}`);
       this.logger.log(`Report data: ${JSON.stringify({
@@ -146,10 +179,10 @@ export class ReportsService {
         report.adminNotes = adminNotes;
       }
 
-      const savedReport = await this.reportsRepository.save(report);
+      await this.reportsRepository.save(report);
       this.logger.log(`Report ${id} resolved successfully`);
-      
-      return savedReport;
+
+      return this.findOne(id);
     } catch (error) {
       this.logger.error(`Error resolving report ${id}`, error?.stack);
       throw error;

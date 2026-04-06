@@ -11,10 +11,12 @@ import { CookieService } from './services/cookie.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
 import { UserBlock } from 'src/users/entities/user-block.entity';
+import { PointsModule } from '../points/points.module';
 
 @Module({
   imports: [
     UsersModule, // Импортируем, чтобы AuthService мог использовать UsersService
+    PointsModule,
     PassportModule,
     ConfigModule, // Добавляем ConfigModule для работы с .env
     TypeOrmModule.forFeature([User, UserBlock]), // Добавляем для BlockedUserGuard

@@ -12,6 +12,8 @@ import { DirectConversationRead } from './entities/direct-conversation-read.enti
 import { User } from '../users/user.entity';
 import { SendDirectMessageDto } from './dto/send-direct-message.dto';
 import { ChatGateway } from './chat.gateway';
+import { PointsService } from '../points/points.service';
+import type { UserRole } from '../users/user.entity';
 
 const MESSAGE_PAGE = 40;
 
@@ -36,7 +38,18 @@ export class ChatService {
     private readonly userRepo: Repository<User>,
     private readonly dataSource: DataSource,
     private readonly chatGateway: ChatGateway,
+    private readonly pointsService: PointsService,
   ) {}
+
+  private peerPayload(
+    id: number,
+    username: string,
+    avatar: string | null,
+    role: UserRole,
+    createdPointsCount: number,
+  ) {
+    return { id, username, avatar, role, createdPointsCount };
+  }
 
   async getConversationMeta(userId: number, conversationId: number) {
     await this.assertMember(userId, conversationId);
@@ -44,18 +57,23 @@ export class ChatService {
     const p = peerId(c, userId);
     const peer = await this.userRepo.findOne({
       where: { id: p },
-      select: ['id', 'username', 'avatar'],
+      select: ['id', 'username', 'avatar', 'role'],
     });
     if (!peer) {
       throw new NotFoundException('Peer not found');
     }
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds([
+      peer.id,
+    ]);
     return {
       conversationId,
-      peer: {
-        id: peer.id,
-        username: peer.username,
-        avatar: peer.avatar,
-      },
+      peer: this.peerPayload(
+        peer.id,
+        peer.username,
+        peer.avatar,
+        peer.role,
+        countMap.get(peer.id) ?? 0,
+      ),
     };
   }
 
@@ -102,9 +120,11 @@ export class ChatService {
     const peerIds = convs.map((c) => peerId(c, userId));
     const peers = await this.userRepo.find({
       where: { id: In(peerIds) },
-      select: ['id', 'username', 'avatar'],
+      select: ['id', 'username', 'avatar', 'role'],
     });
     const peerMap = new Map(peers.map((p) => [p.id, p]));
+    const countMap =
+      await this.pointsService.getCreatedPointsCountsByAuthorIds(peerIds);
 
     const reads = await this.readRepo.find({
       where: convIds.map((id) => ({ conversationId: id, userId })),
@@ -122,8 +142,14 @@ export class ChatService {
       return {
         conversationId: c.id,
         peer: peer
-          ? { id: peer.id, username: peer.username, avatar: peer.avatar }
-          : { id: p, username: '', avatar: null as string | null },
+          ? this.peerPayload(
+              peer.id,
+              peer.username,
+              peer.avatar,
+              peer.role,
+              countMap.get(peer.id) ?? 0,
+            )
+          : this.peerPayload(p, '', null, 'user', 0),
         lastMessage: last
           ? {
               id: last.id,

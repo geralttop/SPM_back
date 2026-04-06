@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Subscription } from './entities/subscription.entity';
 import { User } from './user.entity';
 import { SubscriptionResponseDto, SubscriptionStatsDto } from './dto/subscription-response.dto';
+import { PointsService } from '../points/points.service';
 
 @Injectable()
 export class SubscriptionsService {
@@ -12,6 +13,7 @@ export class SubscriptionsService {
     private subscriptionsRepository: Repository<Subscription>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    private readonly pointsService: PointsService,
   ) {}
 
   async follow(followerId: number, followingId: number): Promise<void> {
@@ -64,12 +66,17 @@ export class SubscriptionsService {
       relations: ['follower'],
     });
 
+    const ids = subscriptions.map((s) => s.follower.id);
+    const countMap =
+      await this.pointsService.getCreatedPointsCountsByAuthorIds(ids);
     return subscriptions.map((sub) => ({
       id: sub.follower.id,
       username: sub.follower.username,
       email: sub.follower.email,
       bio: sub.follower.bio,
       avatar: sub.follower.avatar,
+      role: sub.follower.role,
+      createdPointsCount: countMap.get(sub.follower.id) ?? 0,
     }));
   }
 
@@ -79,12 +86,17 @@ export class SubscriptionsService {
       relations: ['following'],
     });
 
+    const ids = subscriptions.map((s) => s.following.id);
+    const countMap =
+      await this.pointsService.getCreatedPointsCountsByAuthorIds(ids);
     return subscriptions.map((sub) => ({
       id: sub.following.id,
       username: sub.following.username,
       email: sub.following.email,
       bio: sub.following.bio,
       avatar: sub.following.avatar,
+      role: sub.following.role,
+      createdPointsCount: countMap.get(sub.following.id) ?? 0,
     }));
   }
 

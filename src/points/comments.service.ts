@@ -5,6 +5,8 @@ import { Comment } from './entities/comment.entity';
 import { PointEntity } from './entities/point.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { PointsService } from './points.service';
+import { toPublicAuthor } from '../users/user-public.mapper';
 
 @Injectable()
 export class CommentsService {
@@ -13,7 +15,20 @@ export class CommentsService {
     private commentsRepository: Repository<Comment>,
     @InjectRepository(PointEntity)
     private pointsRepository: Repository<PointEntity>,
+    private readonly pointsService: PointsService,
   ) {}
+
+  private async enrichCommentAuthors(comments: Comment[]): Promise<void> {
+    const ids = comments.map((c) => c.authorId).filter((id) => id != null);
+    const countMap = await this.pointsService.getCreatedPointsCountsByAuthorIds(ids);
+    for (const c of comments) {
+      if (c.author) {
+        const cnt = countMap.get(c.author.id) ?? 0;
+        (c as unknown as { author: ReturnType<typeof toPublicAuthor> }).author =
+          toPublicAuthor(c.author, cnt);
+      }
+    }
+  }
 
   async create(pointId: string, createCommentDto: CreateCommentDto, userId: number) {
     // Проверяем, существует ли точка
@@ -31,29 +46,37 @@ export class CommentsService {
     const savedComment = await this.commentsRepository.save(comment);
     
     // Загружаем комментарий с автором
-    return await this.commentsRepository.findOne({
+    const withAuthor = await this.commentsRepository.findOne({
       where: { id: savedComment.id },
       relations: ['author'],
     });
+    if (withAuthor) await this.enrichCommentAuthors([withAuthor]);
+    return withAuthor;
   }
 
   async findByPoint(pointId: string) {
-      return await this.commentsRepository
-        .createQueryBuilder('comment')
-        .leftJoinAndSelect('comment.author', 'author')
-        .leftJoin('user_blocks', 'block', 'block.userId = author.id')
-        .where('comment.pointId = :pointId', { pointId })
-        .andWhere('(block.isBlocked IS NULL OR block.isBlocked = :isBlocked)', { isBlocked: false })
-        .orderBy('comment.createdAt', 'DESC')
-        .getMany();
-    }
+    const comments = await this.commentsRepository
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoin('user_blocks', 'block', 'block.userId = author.id')
+      .where('comment.pointId = :pointId', { pointId })
+      .andWhere('(block.isBlocked IS NULL OR block.isBlocked = :isBlocked)', {
+        isBlocked: false,
+      })
+      .orderBy('comment.createdAt', 'DESC')
+      .getMany();
+    await this.enrichCommentAuthors(comments);
+    return comments;
+  }
 
   async findByUser(userId: number) {
-    return await this.commentsRepository.find({
+    const comments = await this.commentsRepository.find({
       where: { authorId: userId },
       relations: ['author', 'point'],
       order: { createdAt: 'DESC' },
     });
+    await this.enrichCommentAuthors(comments);
+    return comments;
   }
 
   async update(id: number, updateCommentDto: UpdateCommentDto, userId: number) {
@@ -71,7 +94,13 @@ export class CommentsService {
     }
 
     comment.content = updateCommentDto.content;
-    return await this.commentsRepository.save(comment);
+    const saved = await this.commentsRepository.save(comment);
+    const withAuthor = await this.commentsRepository.findOne({
+      where: { id: saved.id },
+      relations: ['author'],
+    });
+    if (withAuthor) await this.enrichCommentAuthors([withAuthor]);
+    return withAuthor;
   }
 
   async remove(id: number, userId: number) {

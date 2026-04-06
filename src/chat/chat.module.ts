@@ -10,6 +10,7 @@ import { UserBlock } from '../users/entities/user-block.entity';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
+import { PointsModule } from '../points/points.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ChatGateway } from './chat.gateway';
       }),
       inject: [ConfigService],
     }),
+    PointsModule,
   ],
   controllers: [ChatController],
   providers: [ChatGateway, ChatService],
