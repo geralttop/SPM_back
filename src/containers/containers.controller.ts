@@ -1,5 +1,17 @@
 import { Controller, Get, Post, Body, UseGuards, Request, Param, Delete, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiBody, ApiOkResponse, ApiCreatedResponse, ApiBadRequestResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiBody,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { ContainersService } from './containers.service';
 import { CreateContainerDto } from './dto/create-container.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -57,11 +69,20 @@ export class ContainersController {
     return this.containersService.findAll(userId);
   }
 
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Get(':id')
-  @ApiOperation({ summary: 'Контейнер по ID', description: 'Публичный эндпоинт: один контейнер по UUID (без авторизации).' })
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Контейнер по ID (карта шаринга)',
+    description:
+      'Контейнер с полными точками для отображения на карте. Требуется JWT. Системные контейнеры (authorId = null) — 403.',
+  })
   @ApiParam({ name: 'id', example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
-  @ApiOkResponse({ description: 'Данные контейнера с точками' })
+  @ApiOkResponse({ description: 'Контейнер с точками (author, category, photos, commentsCount)' })
+  @ApiUnauthorizedResponse({ description: 'Нет или недействителен JWT' })
+  @ApiForbiddenResponse({ description: 'Системный контейнер (шаринг запрещён)' })
+  @ApiNotFoundResponse({ description: 'Контейнер не найден' })
   findOne(@Param('id') id: string) {
-    return this.containersService.findOne(id);
+    return this.containersService.findForShareMap(id);
   }
 }

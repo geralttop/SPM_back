@@ -1,16 +1,23 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Container } from './entities/container.entity';
 import { CreateContainerDto } from './dto/create-container.dto';
 import { User } from 'src/users/user.entity';
 import { UpdateContainerDto } from './dto/update-container.dto';
+import { PointsService } from '../points/points.service';
 
 @Injectable()
 export class ContainersService {
   constructor(
     @InjectRepository(Container)
     private readonly containerRepository: Repository<Container>,
+    private readonly pointsService: PointsService,
   ) {}
 
   async createContainer(createContainerDto: CreateContainerDto, userId: number) {
@@ -82,6 +89,25 @@ export class ContainersService {
     });
     if (!container) throw new NotFoundException('Контейнер не найден');
     return container;
+  }
+
+  /**
+   * Данные для карты шаринга: только не системные контейнеры (authorId задан).
+   * Точки с теми же связями, что в ленте.
+   */
+  async findForShareMap(id: string) {
+    const container = await this.containerRepository.findOne({
+      where: { id },
+      relations: ['author'],
+    });
+    if (!container) {
+      throw new NotFoundException('Контейнер не найден');
+    }
+    if (container.authorId == null) {
+      throw new ForbiddenException('Системный контейнер нельзя открыть по ссылке');
+    }
+    const points = await this.pointsService.findByContainerForMap(id);
+    return { ...container, points };
   }
 
   // Методы для админки

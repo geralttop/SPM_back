@@ -208,10 +208,48 @@ export class PointsService {
     };
   }
 
+  /** Все точки контейнера с теми же связями, что и в ленте (карта «шаринга»). */
+  async findByContainerForMap(containerId: string): Promise<PointEntity[]> {
+    const points = await this.pointsRepository
+      .createQueryBuilder('point')
+      .leftJoinAndSelect('point.category', 'category')
+      .leftJoinAndSelect('point.container', 'container')
+      .leftJoinAndSelect('point.author', 'author')
+      .leftJoinAndSelect('point.photos', 'photos')
+      .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+      .where('point.containerId = :containerId', { containerId })
+      .orderBy('point.createdAt', 'DESC')
+      .getMany();
+
+    this.sortPhotosMany(points);
+    return points;
+  }
+
+  private async viewerHasSubscription(
+    viewerId: number,
+    authorId: number,
+  ): Promise<boolean> {
+    const row = await this.pointsRepository
+      .createQueryBuilder()
+      .select('s.id')
+      .from('subscriptions', 's')
+      .where('s.followerId = :viewerId AND s.followingId = :authorId', {
+        viewerId,
+        authorId,
+      })
+      .limit(1)
+      .getRawOne();
+    return row != null;
+  }
+
   /**
-   * Одна точка по id: как в ленте — своя точка или автора, на которого подписан зритель.
+   * Одна точка по id: своя / подписка / (опционально) открыта из шареной карты контейнера через fromContainerId.
    */
-  async findOneForViewer(id: string, viewerId: number): Promise<PointEntity> {
+  async findOneForViewer(
+    id: string,
+    viewerId: number,
+    opts?: { fromContainerId?: string },
+  ): Promise<PointEntity> {
     const point = await this.pointsRepository
       .createQueryBuilder('point')
       .leftJoinAndSelect('point.category', 'category')
@@ -219,24 +257,36 @@ export class PointsService {
       .leftJoinAndSelect('point.author', 'author')
       .leftJoinAndSelect('point.photos', 'photos')
       .loadRelationCountAndMap('point.commentsCount', 'point.comments')
-      .leftJoin(
-        'subscriptions',
-        'subscription',
-        'subscription.followingId = point.authorId AND subscription.followerId = :viewerId',
-        { viewerId },
-      )
       .where('point.id = :id', { id })
-      .andWhere('(point.authorId = :viewerId OR subscription.id IS NOT NULL)', {
-        viewerId,
-      })
       .getOne();
 
     if (!point) {
       throw new NotFoundException(`Точка с ID ${id} не найдена`);
     }
 
-    this.sortPhotos(point);
-    return point;
+    const fromContainerId = opts?.fromContainerId?.trim() || undefined;
+
+    if (point.authorId === viewerId) {
+      this.sortPhotos(point);
+      return point;
+    }
+
+    if (
+      fromContainerId &&
+      point.container?.id === fromContainerId &&
+      point.container.authorId != null
+    ) {
+      this.sortPhotos(point);
+      return point;
+    }
+
+    const hasSub = await this.viewerHasSubscription(viewerId, point.authorId);
+    if (hasSub) {
+      this.sortPhotos(point);
+      return point;
+    }
+
+    throw new NotFoundException(`Точка с ID ${id} не найдена`);
   }
 
   async findAllWithPagination(options: {

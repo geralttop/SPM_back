@@ -84,12 +84,23 @@ export class PointsController {
   @ApiOperation({
     summary: 'Одна точка по UUID',
     description:
-      'Возвращает точку, если она вам доступна: вы автор или подписаны на автора (как в ленте).',
+      'Возвращает точку, если она вам доступна: вы автор или подписаны на автора (как в ленте). С query fromContainer — доступ к точке из шареной карты пользовательского контейнера (UUID контейнера).',
   })
   @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiQuery({
+    name: 'fromContainer',
+    required: false,
+    description: 'UUID контейнера, если переход с /map?container=…',
+  })
   @ApiOkResponse({ description: 'Точка с категорией, контейнером, автором, фото и commentsCount' })
-  async findOne(@CurrentUserId() userId: number, @Param('id') id: string) {
-    return this.pointsService.findOneForViewer(id, userId);
+  async findOne(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+    @Query('fromContainer') fromContainer?: string,
+  ) {
+    return this.pointsService.findOneForViewer(id, userId, {
+      fromContainerId: fromContainer,
+    });
   }
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
@@ -101,9 +112,20 @@ export class PointsController {
       'Возвращает историю точки. Доступ такой же, как к самой точке: вы автор или подписаны на автора.',
   })
   @ApiParam({ name: 'id', description: 'UUID точки' })
+  @ApiQuery({
+    name: 'fromContainer',
+    required: false,
+    description: 'UUID контейнера (шаринг карты), см. GET /points/:id',
+  })
   @ApiOkResponse({ description: 'Массив записей истории (DESC по createdAt)' })
-  async getHistory(@CurrentUserId() userId: number, @Param('id') id: string) {
-    await this.pointsService.findOneForViewer(id, userId);
+  async getHistory(
+    @CurrentUserId() userId: number,
+    @Param('id') id: string,
+    @Query('fromContainer') fromContainer?: string,
+  ) {
+    await this.pointsService.findOneForViewer(id, userId, {
+      fromContainerId: fromContainer,
+    });
     return this.pointHistoryService.list(id);
   }
 
