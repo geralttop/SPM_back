@@ -34,6 +34,13 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { FileUploadService } from './services/file-upload.service';
 import { BioHistoryService } from '../users/bio-history.service';
 import { UpdateMapSettingsDto } from '../users/dto/update-map-settings.dto';
+import {
+  DEFAULT_AVAILABLE_MAP_STYLES,
+  DEFAULT_MAP_STYLE_KEY,
+  ensureDefaultInAvailable,
+  filterAllowedMapStyles,
+  normalizeStoredMapSettings,
+} from '../users/map-styles.util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PointsService } from '../points/points.service';
@@ -430,17 +437,35 @@ export class AuthController {
     description: 'Настройки карт', 
     schema: { 
       example: { 
-        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
-        defaultMapStyle: 'openstreet'
+        availableMapStyles: DEFAULT_AVAILABLE_MAP_STYLES,
+        defaultMapStyle: DEFAULT_MAP_STYLE_KEY,
       } 
     } 
   })
   async getMapSettings(@CurrentUserId() userId: number) {
     const settings = await this.usersService.getSettings(userId);
 
+    const { availableMapStyles, defaultMapStyle } = normalizeStoredMapSettings(
+      settings?.availableMapStyles,
+      settings?.defaultMapStyle,
+    );
+
+    const rawAv = settings?.availableMapStyles ?? null;
+    const rawDef = settings?.defaultMapStyle ?? null;
+    const dirty =
+      JSON.stringify(availableMapStyles) !== JSON.stringify(rawAv) ||
+      defaultMapStyle !== rawDef;
+
+    if (dirty) {
+      await this.usersService.updateSettings(userId, {
+        availableMapStyles,
+        defaultMapStyle,
+      });
+    }
+
     return {
-      availableMapStyles: settings?.availableMapStyles || ['openstreet', 'openstreet3d', 'satellite', 'carto'],
-      defaultMapStyle: settings?.defaultMapStyle || 'openstreet',
+      availableMapStyles,
+      defaultMapStyle,
       pointCardInitialView: (settings?.pointCardInitialView as 'map' | 'photos') || 'map',
     };
   }
@@ -453,8 +478,8 @@ export class AuthController {
   @ApiBody({ 
     schema: { 
       example: { 
-        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
-        defaultMapStyle: 'openstreet'
+        availableMapStyles: DEFAULT_AVAILABLE_MAP_STYLES,
+        defaultMapStyle: DEFAULT_MAP_STYLE_KEY,
       } 
     } 
   })
@@ -463,8 +488,8 @@ export class AuthController {
     schema: { 
       example: { 
         message: 'Настройки карт обновлены',
-        availableMapStyles: ['openstreet', 'openstreet3d', 'satellite', 'carto'],
-        defaultMapStyle: 'openstreet'
+        availableMapStyles: DEFAULT_AVAILABLE_MAP_STYLES,
+        defaultMapStyle: DEFAULT_MAP_STYLE_KEY,
       } 
     } 
   })
@@ -476,30 +501,41 @@ export class AuthController {
       throw new BadRequestException('At least one map style must be selected');
     }
 
-    // Валидация: стиль по умолчанию должен быть в списке доступных
-    if (body.defaultMapStyle && body.availableMapStyles && !body.availableMapStyles.includes(body.defaultMapStyle)) {
-      throw new BadRequestException('Default map style must be in available map styles');
-    }
-
+    const raw = await this.usersService.getSettings(userId);
     const patch: Record<string, unknown> = {};
-    if (body.availableMapStyles !== undefined) {
-      patch.availableMapStyles = body.availableMapStyles;
-    }
-    if (body.defaultMapStyle !== undefined) {
-      patch.defaultMapStyle = body.defaultMapStyle;
-    }
+
     if (body.pointCardInitialView !== undefined) {
       patch.pointCardInitialView = body.pointCardInitialView;
     }
 
-    await this.usersService.updateSettings(userId, patch as any);
+    if (body.availableMapStyles !== undefined || body.defaultMapStyle !== undefined) {
+      const nextAvailable =
+        body.availableMapStyles !== undefined
+          ? filterAllowedMapStyles(body.availableMapStyles)
+          : filterAllowedMapStyles(raw?.availableMapStyles);
+      let nextDefault =
+        body.defaultMapStyle !== undefined
+          ? body.defaultMapStyle
+          : raw?.defaultMapStyle ?? DEFAULT_MAP_STYLE_KEY;
+      nextDefault = ensureDefaultInAvailable(nextDefault, nextAvailable);
+      patch.availableMapStyles = nextAvailable;
+      patch.defaultMapStyle = nextDefault;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await this.usersService.updateSettings(userId, patch as any);
+    }
 
     const settings = await this.usersService.getSettings(userId);
+    const { availableMapStyles, defaultMapStyle } = normalizeStoredMapSettings(
+      settings?.availableMapStyles,
+      settings?.defaultMapStyle,
+    );
 
     return {
       message: 'Настройки карт обновлены',
-      availableMapStyles: settings?.availableMapStyles || ['openstreet', 'openstreet3d', 'satellite', 'carto'],
-      defaultMapStyle: settings?.defaultMapStyle || 'openstreet',
+      availableMapStyles,
+      defaultMapStyle,
       pointCardInitialView: (settings?.pointCardInitialView as 'map' | 'photos') || 'map',
     };
   }
