@@ -1,9 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
-
 export class SplitUserTable1771400000000 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    // 1. Создаем таблицу user_verification
-    await queryRunner.query(`
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
       CREATE TABLE user_verification (
         id SERIAL PRIMARY KEY,
         "userId" INTEGER UNIQUE NOT NULL,
@@ -13,9 +11,7 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
           REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-
-    // 2. Создаем таблицу user_security
-    await queryRunner.query(`
+        await queryRunner.query(`
       CREATE TABLE user_security (
         id SERIAL PRIMARY KEY,
         "userId" INTEGER UNIQUE NOT NULL,
@@ -27,9 +23,7 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
           REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-
-    // 3. Создаем таблицу user_settings
-    await queryRunner.query(`
+        await queryRunner.query(`
       CREATE TABLE user_settings (
         id SERIAL PRIMARY KEY,
         "userId" INTEGER UNIQUE NOT NULL,
@@ -38,9 +32,7 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
           REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-
-    // 4. Создаем таблицу user_blocks
-    await queryRunner.query(`
+        await queryRunner.query(`
       CREATE TABLE user_blocks (
         id SERIAL PRIMARY KEY,
         "userId" INTEGER UNIQUE NOT NULL,
@@ -51,42 +43,30 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
           REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-
-    // 5. Переносим данные из users в user_verification
-    await queryRunner.query(`
+        await queryRunner.query(`
       INSERT INTO user_verification ("userId", "confirmationCode", "codeCreatedAt")
       SELECT id, "confirmationCode", "codeCreatedAt"
       FROM users
     `);
-
-    // 6. Переносим данные из users в user_security
-    await queryRunner.query(`
+        await queryRunner.query(`
       INSERT INTO user_security ("userId", "failedCodeAttempts", "codeBlockedUntil", "failedLoginAttempts", "loginBlockedUntil")
       SELECT id, "failedCodeAttempts", "codeBlockedUntil", "failedLoginAttempts", "loginBlockedUntil"
       FROM users
     `);
-
-    // 7. Переносим данные из users в user_settings
-    await queryRunner.query(`
+        await queryRunner.query(`
       INSERT INTO user_settings ("userId", "sidebarOrder")
       SELECT id, "sidebarOrder"
       FROM users
     `);
-
-    // 8. Переносим данные из users в user_blocks
-    await queryRunner.query(`
+        await queryRunner.query(`
       INSERT INTO user_blocks ("userId", "isBlocked", "blockedAt", "blockReason")
       SELECT id, "isBlocked", "blockedAt", "blockReason"
       FROM users
     `);
-
-    // 9. Удаляем представление, которое зависит от isBlocked (если существует)
-    await queryRunner.query(`
+        await queryRunner.query(`
       DROP VIEW IF EXISTS v_user_statistics CASCADE
     `);
-
-    // 10. Удаляем старые колонки из users
-    await queryRunner.query(`
+        await queryRunner.query(`
       ALTER TABLE users 
       DROP COLUMN "confirmationCode",
       DROP COLUMN "codeCreatedAt",
@@ -99,11 +79,9 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
       DROP COLUMN "blockedAt",
       DROP COLUMN "blockReason"
     `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    // 1. Восстанавливаем колонки в users
-    await queryRunner.query(`
+    }
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
       ALTER TABLE users 
       ADD COLUMN "confirmationCode" VARCHAR,
       ADD COLUMN "codeCreatedAt" TIMESTAMP,
@@ -116,18 +94,14 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
       ADD COLUMN "blockedAt" TIMESTAMP,
       ADD COLUMN "blockReason" TEXT
     `);
-
-    // 2. Восстанавливаем данные из user_verification
-    await queryRunner.query(`
+        await queryRunner.query(`
       UPDATE users u
       SET "confirmationCode" = v."confirmationCode",
           "codeCreatedAt" = v."codeCreatedAt"
       FROM user_verification v
       WHERE u.id = v."userId"
     `);
-
-    // 3. Восстанавливаем данные из user_security
-    await queryRunner.query(`
+        await queryRunner.query(`
       UPDATE users u
       SET "failedCodeAttempts" = s."failedCodeAttempts",
           "codeBlockedUntil" = s."codeBlockedUntil",
@@ -136,17 +110,13 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
       FROM user_security s
       WHERE u.id = s."userId"
     `);
-
-    // 4. Восстанавливаем данные из user_settings
-    await queryRunner.query(`
+        await queryRunner.query(`
       UPDATE users u
       SET "sidebarOrder" = st."sidebarOrder"
       FROM user_settings st
       WHERE u.id = st."userId"
     `);
-
-    // 5. Восстанавливаем данные из user_blocks
-    await queryRunner.query(`
+        await queryRunner.query(`
       UPDATE users u
       SET "isBlocked" = b."isBlocked",
           "blockedAt" = b."blockedAt",
@@ -154,11 +124,9 @@ export class SplitUserTable1771400000000 implements MigrationInterface {
       FROM user_blocks b
       WHERE u.id = b."userId"
     `);
-
-    // 6. Удаляем новые таблицы
-    await queryRunner.query(`DROP TABLE user_verification`);
-    await queryRunner.query(`DROP TABLE user_security`);
-    await queryRunner.query(`DROP TABLE user_settings`);
-    await queryRunner.query(`DROP TABLE user_blocks`);
-  }
+        await queryRunner.query(`DROP TABLE user_verification`);
+        await queryRunner.query(`DROP TABLE user_security`);
+        await queryRunner.query(`DROP TABLE user_settings`);
+        await queryRunner.query(`DROP TABLE user_blocks`);
+    }
 }

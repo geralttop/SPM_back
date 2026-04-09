@@ -6,11 +6,11 @@ import { Container } from './entities/container.entity';
 import { User } from '../users/user.entity';
 import { UserBlock } from '../users/entities/user-block.entity';
 import { PointsModule } from '../points/points.module';
-
 @Module({
-  imports: [TypeOrmModule.forFeature([Container, User, UserBlock]), PointsModule],
-  controllers: [ContainersController],
-  providers: [ContainersService],
-  exports: [ContainersService, TypeOrmModule] // Экспортируем, чтобы другие модули видели репозиторий
+    imports: [TypeOrmModule.forFeature([Container, User, UserBlock]), PointsModule],
+    controllers: [ContainersController],
+    providers: [ContainersService],
+    exports: [ContainersService, TypeOrmModule]
 })
-export class ContainersModule {}
+export class ContainersModule {
+}

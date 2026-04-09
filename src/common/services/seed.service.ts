@@ -3,50 +3,38 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
 import { Container } from '../../containers/entities/container.entity';
-
 @Injectable()
 export class SeedService implements OnModuleInit {
-  private readonly logger = new Logger(SeedService.name);
-
-  constructor(
+    private readonly logger = new Logger(SeedService.name);
+    constructor(
     @InjectRepository(Category)
-    private categoryRepository: Repository<Category>,
+    private categoryRepository: Repository<Category>, 
     @InjectRepository(Container)
-    private containerRepository: Repository<Container>,
-  ) {}
-
-  async onModuleInit() {
-    await this.seedDefaultData();
-  }
-
-  private async seedDefaultData() {
-    // Создаем системную категорию "Без категории"
-    const defaultCategory = await this.categoryRepository.findOne({
-      where: { name: 'Без категории', author: IsNull() }
-    });
-
-    if (!defaultCategory) {
-      await this.categoryRepository.save({
-        name: 'Без категории',
-        icon: 'help-circle',
-        color: '#6B7280',
-        // author не указываем, будет null по умолчанию
-      });
-      this.logger.log('Создана системная категория "Без категории"');
+    private containerRepository: Repository<Container>) { }
+    async onModuleInit() {
+        await this.seedDefaultData();
     }
-
-    // Создаем системный контейнер "Общее"
-    const defaultContainer = await this.containerRepository.findOne({
-      where: { title: 'Общее', author: IsNull() }
-    });
-
-    if (!defaultContainer) {
-      await this.containerRepository.save({
-        title: 'Общее',
-        description: 'Общий контейнер для точек без специальной категоризации',
-        // author не указываем, будет null по умолчанию
-      });
-      this.logger.log('Создан системный контейнер "Общее"');
+    private async seedDefaultData() {
+        const defaultCategory = await this.categoryRepository.findOne({
+            where: { name: 'Без категории', author: IsNull() }
+        });
+        if (!defaultCategory) {
+            await this.categoryRepository.save({
+                name: 'Без категории',
+                icon: 'help-circle',
+                color: '#6B7280',
+            });
+            this.logger.log('Создана системная категория "Без категории"');
+        }
+        const defaultContainer = await this.containerRepository.findOne({
+            where: { title: 'Общее', author: IsNull() }
+        });
+        if (!defaultContainer) {
+            await this.containerRepository.save({
+                title: 'Общее',
+                description: 'Общий контейнер для точек без специальной категоризации',
+            });
+            this.logger.log('Создан системный контейнер "Общее"');
+        }
     }
-  }
 }
