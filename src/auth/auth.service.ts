@@ -120,7 +120,7 @@ export class AuthService {
       <div style="background:#f6f7fb;padding:24px 12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
         <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e9f3;border-radius:16px;overflow:hidden;">
           <div style="padding:20px 22px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;">
-            <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMap</div>
+            <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMaps</div>
             <div style="font-size:20px;font-weight:700;margin-top:6px;">Код подтверждения</div>
           </div>
           <div style="padding:22px;">
@@ -340,7 +340,7 @@ export class AuthService {
         <div style="background:#f6f7fb;padding:24px 12px;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
           <div style="max-width:520px;margin:0 auto;background:#ffffff;border:1px solid #e7e9f3;border-radius:16px;overflow:hidden;">
             <div style="padding:20px 22px;background:linear-gradient(135deg,#0ea5e9,#2563eb);color:#ffffff;">
-              <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMap</div>
+              <div style="font-size:14px;opacity:.9;letter-spacing:.2px;">SharePlacesMaps</div>
               <div style="font-size:20px;font-weight:700;margin-top:6px;">Восстановление пароля</div>
             </div>
             <div style="padding:22px;">

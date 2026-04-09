@@ -36,7 +36,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const defaultOrigins =
-    'http://localhost:3001,http://localhost:3000,https://shareplacesmap.vercel.app';
+    'http://localhost:3001,http://localhost:3000,https://shareplacesmaps.vercel.app';
   const corsOrigins = (process.env.CORS_ORIGINS || defaultOrigins)
     .split(',')
     .map((o) => o.trim())
