@@ -123,11 +123,13 @@ export class PointsService {
                 coordinates: [lng, lat],
             };
         }
-        if (categoryId) {
-            point.category = { id: categoryId } as any;
+        if (categoryId !== undefined) {
+            point.category =
+                categoryId === null ? null : ({ id: categoryId } as any);
         }
-        if (containerId) {
-            point.container = { id: containerId } as any;
+        if (containerId !== undefined) {
+            point.container =
+                containerId === null ? null : ({ id: containerId } as any);
         }
         const savedPoint = await this.pointsRepository.save(point);
         const updatedPoint = await this.pointsRepository
