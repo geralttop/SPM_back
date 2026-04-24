@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, MaxLength, IsNotEmpty, Matches } from 'class-validator';
 
+const PASSWORD_REGEX =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s])[^\s]+$/;
+
 export class RegisterDto {
   @ApiProperty({ 
     example: 'geralt', 
@@ -32,8 +35,9 @@ export class RegisterDto {
   @IsNotEmpty({ message: 'Пароль не может быть пустым' })
   @MinLength(8, { message: 'Пароль должен содержать минимум 8 символов' })
   @MaxLength(128, { message: 'Пароль не может быть длиннее 128 символов' })
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]+$/, {
-    message: 'Пароль должен содержать минимум: 1 строчную букву, 1 заглавную букву, 1 цифру и 1 спецсимвол (@$!%*?&#)'
+  @Matches(PASSWORD_REGEX, {
+    message:
+      'Пароль должен содержать минимум: 1 строчную букву, 1 заглавную букву, 1 цифру и 1 спецсимвол (любой символ, кроме пробелов)',
   })
   password: string;
 }
