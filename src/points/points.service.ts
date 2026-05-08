@@ -220,6 +220,21 @@ export class PointsService {
         await this.enrichPointsWithPublicAuthors(points);
         return points;
     }
+    async findByCategoryForMap(categoryId: number): Promise<PointEntity[]> {
+        const points = await this.pointsRepository
+            .createQueryBuilder('point')
+            .leftJoinAndSelect('point.category', 'category')
+            .leftJoinAndSelect('point.container', 'container')
+            .leftJoinAndSelect('point.author', 'author')
+            .leftJoinAndSelect('point.photos', 'photos')
+            .loadRelationCountAndMap('point.commentsCount', 'point.comments')
+            .where('point.categoryId = :categoryId', { categoryId })
+            .orderBy('point.createdAt', 'DESC')
+            .getMany();
+        this.sortPhotosMany(points);
+        await this.enrichPointsWithPublicAuthors(points);
+        return points;
+    }
     private async viewerHasSubscription(viewerId: number, authorId: number): Promise<boolean> {
         const row = await this.pointsRepository
             .createQueryBuilder()
@@ -248,26 +263,9 @@ export class PointsService {
         if (!point) {
             throw new NotFoundException(`Точка с ID ${id} не найдена`);
         }
-        const fromContainerId = opts?.fromContainerId?.trim() || undefined;
-        if (point.authorId === viewerId) {
-            this.sortPhotos(point);
-            await this.enrichPointsWithPublicAuthors([point]);
-            return point;
-        }
-        if (fromContainerId &&
-            point.container?.id === fromContainerId &&
-            point.container.authorId != null) {
-            this.sortPhotos(point);
-            await this.enrichPointsWithPublicAuthors([point]);
-            return point;
-        }
-        const hasSub = await this.viewerHasSubscription(viewerId, point.authorId);
-        if (hasSub) {
-            this.sortPhotos(point);
-            await this.enrichPointsWithPublicAuthors([point]);
-            return point;
-        }
-        throw new NotFoundException(`Точка с ID ${id} не найдена`);
+        this.sortPhotos(point);
+        await this.enrichPointsWithPublicAuthors([point]);
+        return point;
     }
     async findAllWithPagination(options: {
         skip?: number;

@@ -44,6 +44,22 @@ export class PointsController {
   ) {}
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @Get('by-category/:categoryId')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Точки по категории (для карты)', description: 'Возвращает точки выбранной категории по id. Требуется JWT.' })
+  @ApiParam({ name: 'categoryId', required: true, example: '1', description: 'ID категории' })
+  @ApiOkResponse({ description: 'Массив точек категории' })
+  async findByCategory(
+    @Param('categoryId') categoryId: string,
+  ) {
+    const parsed = parseInt(categoryId);
+    if (!Number.isFinite(parsed)) {
+      throw new BadRequestException('Некорректный categoryId');
+    }
+    return this.pointsService.findByCategoryForMap(parsed);
+  }
+
+  @UseGuards(JwtAuthGuard, BlockedUserGuard)
   @Post()
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Создать точку', description: 'Добавляет новую точку на карту. Требуется контейнер (UUID) и категория (id).' })
@@ -84,7 +100,7 @@ export class PointsController {
   @ApiOperation({
     summary: 'Одна точка по UUID',
     description:
-      'Возвращает точку, если она вам доступна: вы автор или подписаны на автора (как в ленте). С query fromContainer — доступ к точке из шареной карты пользовательского контейнера (UUID контейнера).',
+      'Возвращает точку по UUID (требуется JWT). С query fromContainer — контекст перехода с /map?container=… (UUID контейнера).',
   })
   @ApiParam({ name: 'id', description: 'UUID точки' })
   @ApiQuery({
