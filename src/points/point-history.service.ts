@@ -18,6 +18,7 @@ export type PointHistoryPhotoDto = {
 export type PointHistoryEntryDto = {
     id: string;
     pointId: string;
+    pointName: string | null;
     description: string | null;
     createdAt: Date;
     photos: PointHistoryPhotoDto[];
@@ -37,6 +38,7 @@ export class PointHistoryService {
         return {
             id: row.id,
             pointId: row.pointId,
+            pointName: row.pointName ?? null,
             description: row.description ?? null,
             createdAt: row.createdAt,
             photos: photos.map((p) => ({
@@ -96,6 +98,7 @@ export class PointHistoryService {
         const history = this.historyRepo.create({
             pointId: point.id,
             authorId: userId,
+            pointName: point.name ?? null,
             description: point.description ?? null,
         });
         const saved = await this.historyRepo.save(history);

@@ -32,6 +32,9 @@ export class PointHistoryEntity {
   @JoinColumn({ name: 'authorId' })
   author: User;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  pointName: string | null;
+
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
