@@ -33,7 +33,7 @@ export class AdminController {
         const [containers] = await this.containersService.findAllWithPagination({ skip: 0, take: 1000 });
         const adminCount = users.filter(u => u.role === 'admin').length;
         const userCount = users.filter(u => u.role === 'user').length;
-        const verifiedCount = users.filter(u => u.isEmailVerified).length;
+        const verifiedCount = users.filter(u => u.isVerified).length;
         const pointsByCategory = categories.map(cat => ({
             name: cat.name,
             count: points.filter(p => p.category?.id === cat.id).length,

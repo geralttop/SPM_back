@@ -77,6 +77,7 @@ export class SubscriptionsService {
       avatar: sub.follower.avatar,
       role: sub.follower.role,
       createdPointsCount: countMap.get(sub.follower.id) ?? 0,
+      isVerified: sub.follower.isVerified,
     }));
   }
 
@@ -97,6 +98,7 @@ export class SubscriptionsService {
       avatar: sub.following.avatar,
       role: sub.following.role,
       createdPointsCount: countMap.get(sub.following.id) ?? 0,
+      isVerified: sub.following.isVerified,
     }));
   }
 

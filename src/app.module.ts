@@ -15,6 +15,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ZlataModule } from './zlata/zlata.module';
 import { VinlandModule } from './vinland/vinland.module';
 import { ChatModule } from './chat/chat.module';
+import { VerificationModule } from './verification/verification.module';
 import { SeedService } from './common/services/seed.service';
 import { Container } from './containers/entities/container.entity';
 import { Category } from './categories/entities/category.entity';
@@ -85,6 +86,7 @@ import { Category } from './categories/entities/category.entity';
         ZlataModule,
         VinlandModule,
         ChatModule,
+        VerificationModule,
         TypeOrmModule.forFeature([Category, Container]),
     ],
     providers: [

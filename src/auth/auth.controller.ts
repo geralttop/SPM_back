@@ -77,6 +77,7 @@ export class AuthController {
             userId: user.id.toString(),
             email: user.email,
             role: user.role,
+            isVerified: user.isVerified,
             username: user.username,
             bio: user.bio,
             avatar: user.avatar,
@@ -336,6 +337,7 @@ export class AuthController {
             avatar: user.avatar,
             role: user.role,
             createdPointsCount: countMap.get(user.id) ?? 0,
+            isVerified: user.isVerified,
         };
     }
     @Throttle({ default: { limit: 20, ttl: 60000 } })
@@ -364,6 +366,7 @@ export class AuthController {
             avatar: user.avatar,
             role: user.role,
             createdPointsCount: countMap.get(user.id) ?? 0,
+            isVerified: user.isVerified,
         };
     }
     @Throttle({ default: { limit: 10, ttl: 60000 } })

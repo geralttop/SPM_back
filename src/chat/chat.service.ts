@@ -47,8 +47,9 @@ export class ChatService {
     avatar: string | null,
     role: UserRole,
     createdPointsCount: number,
+    isVerified: boolean,
   ) {
-    return { id, username, avatar, role, createdPointsCount };
+    return { id, username, avatar, role, createdPointsCount, isVerified };
   }
 
   async getConversationMeta(userId: number, conversationId: number) {
@@ -57,7 +58,7 @@ export class ChatService {
     const p = peerId(c, userId);
     const peer = await this.userRepo.findOne({
       where: { id: p },
-      select: ['id', 'username', 'avatar', 'role'],
+      select: ['id', 'username', 'avatar', 'role', 'isVerified'],
     });
     if (!peer) {
       throw new NotFoundException('Peer not found');
@@ -73,6 +74,7 @@ export class ChatService {
         peer.avatar,
         peer.role,
         countMap.get(peer.id) ?? 0,
+        peer.isVerified,
       ),
     };
   }
@@ -120,7 +122,7 @@ export class ChatService {
     const peerIds = convs.map((c) => peerId(c, userId));
     const peers = await this.userRepo.find({
       where: { id: In(peerIds) },
-      select: ['id', 'username', 'avatar', 'role'],
+      select: ['id', 'username', 'avatar', 'role', 'isVerified'],
     });
     const peerMap = new Map(peers.map((p) => [p.id, p]));
     const countMap =
@@ -148,8 +150,9 @@ export class ChatService {
               peer.avatar,
               peer.role,
               countMap.get(peer.id) ?? 0,
+              peer.isVerified,
             )
-          : this.peerPayload(p, '', null, 'user', 0),
+          : this.peerPayload(p, '', null, 'user', 0, false),
         lastMessage: last
           ? {
               id: last.id,

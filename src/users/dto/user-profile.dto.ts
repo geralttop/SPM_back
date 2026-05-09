@@ -16,6 +16,9 @@ export class UserProfileDto {
   @ApiProperty({ example: 'user' })
   role: string;
 
+  @ApiProperty({ example: false, description: 'Галочка верификации (не связана с почтой).' })
+  isVerified: boolean;
+
   @ApiProperty({ example: 'Ведьмак из Каэр Морхена', required: false })
   bio?: string;
 

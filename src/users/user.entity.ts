@@ -18,6 +18,8 @@ export class User {
     password: string;
     @Column({ default: false })
     isEmailVerified: boolean;
+    @Column({ default: false })
+    isVerified: boolean;
     @Column({
         type: 'varchar',
         default: 'user',

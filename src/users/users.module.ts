@@ -12,6 +12,12 @@ import { SubscriptionsService } from './subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { BioHistoryService } from './bio-history.service';
 import { PointsModule } from '../points/points.module';
+import { MyStatsController } from './my-stats.controller';
+import { PointEntity } from '../points/entities/point.entity';
+import { Comment } from '../points/entities/comment.entity';
+import { Favorite } from '../points/entities/favorite.entity';
+import { Category } from '../categories/entities/category.entity';
+import { Container } from '../containers/entities/container.entity';
 
 @Module({
   imports: [
@@ -24,10 +30,15 @@ import { PointsModule } from '../points/points.module';
       UserSettings,
       UserBlock,
       UserBioHistory,
+      PointEntity,
+      Comment,
+      Favorite,
+      Category,
+      Container,
     ]),
   ],
   providers: [UsersService, SubscriptionsService, BioHistoryService],
-  controllers: [SubscriptionsController],
+  controllers: [SubscriptionsController, MyStatsController],
   exports: [UsersService, SubscriptionsService, BioHistoryService, TypeOrmModule],
 })
 export class UsersModule {}

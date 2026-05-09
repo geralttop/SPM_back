@@ -6,6 +6,7 @@ export class SubscriptionResponseDto {
   avatar: string | null;
   role: 'user' | 'admin';
   createdPointsCount: number;
+  isVerified: boolean;
 }
 
 export class SubscriptionStatsDto {
