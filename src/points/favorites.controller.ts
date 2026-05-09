@@ -47,6 +47,21 @@ export class FavoritesController {
     return this.favoritesService.getUserFavorites(userId);
   }
 
+  @Get('point-ids')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'ID точек в избранном',
+    description: 'Компактный список UUID точек в избранном текущего пользователя (для клиентской проверки без N запросов check).',
+  })
+  @ApiOkResponse({
+    description: 'Массив UUID',
+    schema: { example: { pointIds: ['a1b2c3d4-e5f6-7890-abcd-ef1234567890'] } },
+  })
+  async getFavoritePointIds(@CurrentUserId() userId: number) {
+    const pointIds = await this.favoritesService.getFavoritePointIds(userId);
+    return { pointIds };
+  }
+
   @Get('check/:pointId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Проверить избранное', description: 'Проверяет, в избранном ли точка у текущего пользователя.' })

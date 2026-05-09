@@ -18,6 +18,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
+import { SKIP_APP_THROTTLE } from '../common/throttle-skip-app';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BlockedUserGuard } from '../auth/guards/blocked-user.guard';
 import { ChatService } from './chat.service';
@@ -25,7 +26,7 @@ import { SendDirectMessageDto } from './dto/send-direct-message.dto';
 
 @ApiTags('Чаты')
 @Controller('chats')
-@SkipThrottle()
+@SkipThrottle(SKIP_APP_THROTTLE)
 @UseGuards(JwtAuthGuard, BlockedUserGuard)
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}

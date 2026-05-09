@@ -2,6 +2,7 @@ import { Controller, Post, Body, Get, UseGuards, Request, UnauthorizedException,
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
+import { SKIP_APP_THROTTLE } from '../common/throttle-skip-app';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -53,7 +54,7 @@ export class AuthController {
     body: LoginDto) {
         return this.authService.login(body.email, body.password);
     }
-    @SkipThrottle()
+    @SkipThrottle(SKIP_APP_THROTTLE)
     @ApiBearerAuth()
     @Get('profile')
     @ApiOperation({ summary: 'Профиль', description: 'Возвращает данные текущего пользователя по JWT.' })
@@ -268,7 +269,7 @@ export class AuthController {
         }
         return this.bioHistoryService.findByUserId(user.id);
     }
-    @SkipThrottle()
+    @SkipThrottle(SKIP_APP_THROTTLE)
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard, BlockedUserGuard)
     @Post('logout')

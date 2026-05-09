@@ -25,6 +25,8 @@ import {
   ApiBadRequestResponse,
   ApiConsumes,
 } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
+import { SKIP_APP_THROTTLE } from '../common/throttle-skip-app';
 import { PointsService } from './points.service';
 import { CreatePointDto } from './dto/create-point.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -120,6 +122,7 @@ export class PointsController {
   }
 
   @UseGuards(JwtAuthGuard, BlockedUserGuard)
+  @SkipThrottle(SKIP_APP_THROTTLE)
   @Get(':id/history')
   @ApiBearerAuth()
   @ApiOperation({

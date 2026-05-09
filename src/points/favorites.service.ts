@@ -80,4 +80,14 @@ export class FavoritesService {
         });
         return !!favorite;
     }
+
+    async getFavoritePointIds(userId: number): Promise<string[]> {
+        const rows = await this.favoritesRepository
+            .createQueryBuilder('favorite')
+            .select('point.id', 'id')
+            .innerJoin('favorite.point', 'point')
+            .where('favorite.userId = :userId', { userId })
+            .getRawMany();
+        return rows.map((row: { id: string }) => row.id);
+    }
 }
