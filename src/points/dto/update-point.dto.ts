@@ -13,6 +13,12 @@ export class UpdatePointDto {
   @IsString()
   description?: string;
 
+  @ApiProperty({ example: 'ул. Пушкина, 10', required: false, nullable: true })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null;
+
   @ApiProperty({ example: 37.62, required: false })
   @IsOptional()
   @IsNumber()

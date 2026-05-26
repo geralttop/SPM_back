@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsString, IsUUID, IsOptional } from 'class-validator';
+import { IsNumber, IsString, IsUUID, IsOptional, MaxLength } from 'class-validator';
 
 export class CreatePointDto {
   @ApiProperty({ example: 'Кофейня у замка', description: 'Название точки' })
@@ -10,6 +10,12 @@ export class CreatePointDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({ example: 'ул. Пушкина, 10, Минск', required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
 
   @ApiProperty({ example: 37.6173, description: 'Долгота (longitude)' })
   @IsNumber()
