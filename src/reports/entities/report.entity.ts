@@ -20,7 +20,7 @@ export class Report {
     })
     reason: ReportReason;
     @Column({ type: 'text', nullable: true })
-    description: string;
+    description: string | null;
     @Column({
         type: 'enum',
         enum: ['pending', 'reviewed', 'resolved', 'dismissed'],
@@ -37,25 +37,25 @@ export class Report {
     @JoinColumn({ name: 'reporterId' })
     reporter: User;
     @Column({ nullable: true })
-    pointId: string;
+    pointId: string | null;
     @ManyToOne(() => PointEntity, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'pointId' })
     point: PointEntity;
     @Column({ nullable: true })
-    commentId: number;
+    commentId: number | null;
     @ManyToOne(() => Comment, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'commentId' })
     comment: Comment;
     @Column({ nullable: true })
-    reportedUserId: number;
+    reportedUserId: number | null;
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'reportedUserId' })
     reportedUser: User;
     @Column({ nullable: true })
-    reviewedById: number;
+    reviewedById: number | null;
     @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'reviewedById' })
     reviewedBy: User;
     @Column({ type: 'text', nullable: true })
-    adminNotes: string;
+    adminNotes: string | null;
 }

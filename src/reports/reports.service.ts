@@ -207,10 +207,10 @@ export class ReportsService {
     }
     private async blockReportedUser(report: Report): Promise<void> {
         try {
-            let userId: number;
+            let userId: number | undefined;
             switch (report.type) {
                 case 'user':
-                    userId = report.reportedUserId;
+                    userId = report.reportedUserId ?? undefined;
                     break;
                 case 'point':
                     userId = report.point?.authorId;
