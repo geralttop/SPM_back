@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { BioHistoryService } from './bio-history.service';
 import { UserVerification } from './entities/user-verification.entity';
@@ -133,9 +133,40 @@ export class UsersService {
         if (!user) {
             throw new BadRequestException(`Пользователь с ID ${id} не найден`);
         }
+        if (attrs.username !== undefined) {
+            const nextUsername = String(attrs.username).trim();
+            if (!nextUsername) {
+                throw new BadRequestException('Имя пользователя обязательно');
+            }
+            if (nextUsername.length < 3 || nextUsername.length > 30) {
+                throw new BadRequestException('Имя пользователя должно содержать от 3 до 30 символов');
+            }
+            if (!/^[a-zA-Z0-9_]+$/.test(nextUsername)) {
+                throw new BadRequestException('Имя пользователя может содержать только буквы, цифры и подчеркивание');
+            }
+            if (nextUsername !== user.username) {
+                const existing = await this.findByUsername(nextUsername);
+                if (existing && existing.id !== id) {
+                    throw new BadRequestException('Пользователь с таким именем уже существует');
+                }
+            }
+            attrs = { ...attrs, username: nextUsername };
+        }
         const previousBio = user.bio;
         Object.assign(user, attrs);
-        const saved = await this.usersRepository.save(user);
+        let saved: User;
+        try {
+            saved = await this.usersRepository.save(user);
+        }
+        catch (error) {
+            if (error instanceof QueryFailedError) {
+                const code = (error.driverError as { code?: string } | undefined)?.code;
+                if (code === '23505') {
+                    throw new BadRequestException('Пользователь с таким именем уже существует');
+                }
+            }
+            throw error;
+        }
         if (attrs.bio !== undefined) {
             const oldNorm = this.normalizeBio(previousBio);
             const newNorm = this.normalizeBio(attrs.bio);
