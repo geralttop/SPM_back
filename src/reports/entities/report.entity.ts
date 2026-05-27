@@ -38,12 +38,12 @@ export class Report {
     reporter: User;
     @Column({ nullable: true })
     pointId: string;
-    @ManyToOne(() => PointEntity, { nullable: true })
+    @ManyToOne(() => PointEntity, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'pointId' })
     point: PointEntity;
     @Column({ nullable: true })
     commentId: number;
-    @ManyToOne(() => Comment, { nullable: true })
+    @ManyToOne(() => Comment, { nullable: true, onDelete: 'SET NULL' })
     @JoinColumn({ name: 'commentId' })
     comment: Comment;
     @Column({ nullable: true })

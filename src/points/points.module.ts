@@ -15,6 +15,7 @@ import { UserBlock } from '../users/entities/user-block.entity';
 import { PointHistoryEntity } from './entities/point-history.entity';
 import { PointHistoryPhotoEntity } from './entities/point-history-photo.entity';
 import { PointHistoryService } from './point-history.service';
+import { Report } from '../reports/entities/report.entity';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { PointHistoryService } from './point-history.service';
       UserBlock,
       PointHistoryEntity,
       PointHistoryPhotoEntity,
+      Report,
     ]),
   ],
   controllers: [PointsController, FavoritesController, CommentsController],

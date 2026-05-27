@@ -9,13 +9,16 @@ import { CreatePointDto } from './dto/create-point.dto';
 import { UpdatePointDto } from './dto/update-point.dto';
 import { MAX_PHOTOS_PER_POINT, POINT_MEDIA_ASPECT_W, POINT_MEDIA_ASPECT_H, } from './points.constants';
 import { toPublicAuthor } from '../users/user-public.mapper';
+import { Report } from '../reports/entities/report.entity';
 @Injectable()
 export class PointsService {
     constructor(
     @InjectRepository(PointEntity)
     private pointsRepository: Repository<PointEntity>, 
     @InjectRepository(PointPhotoEntity)
-    private pointPhotoRepository: Repository<PointPhotoEntity>) { }
+    private pointPhotoRepository: Repository<PointPhotoEntity>, 
+    @InjectRepository(Report)
+    private reportsRepository: Repository<Report>) { }
     private sortPhotos(point: PointEntity): void {
         if (point.photos?.length) {
             point.photos.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -155,12 +158,7 @@ export class PointsService {
         if (!point) {
             throw new NotFoundException(`Точка с ID ${id} не найдена или у вас нет прав на её удаление`);
         }
-        if (point.photos?.length) {
-            for (const ph of point.photos) {
-                this.unlinkPhotoFile(ph.url);
-            }
-        }
-        await this.pointsRepository.remove(point);
+        await this.deletePointEntity(point);
         return { message: `Точка ${id} успешно удалена` };
     }
     async findAll() {
@@ -328,12 +326,25 @@ export class PointsService {
     }
     async remove(id: string): Promise<void> {
         const point = await this.findOne(id);
+        await this.deletePointEntity(point);
+    }
+    private async deletePointEntity(point: PointEntity): Promise<void> {
         if (point.photos?.length) {
             for (const ph of point.photos) {
                 this.unlinkPhotoFile(ph.url);
             }
         }
+        await this.detachReportsFromPoint(point.id);
         await this.pointsRepository.remove(point);
+    }
+    private async detachReportsFromPoint(pointId: string): Promise<void> {
+        await this.reportsRepository.update({ pointId }, { pointId: null });
+        await this.reportsRepository
+            .createQueryBuilder()
+            .update(Report)
+            .set({ commentId: null })
+            .where(`"commentId" IN (SELECT id FROM comments WHERE "pointId" = :pointId)`, { pointId })
+            .execute();
     }
     private unlinkPhotoFile(url: string): void {
         const relative = url.startsWith('/') ? url.slice(1) : url;
