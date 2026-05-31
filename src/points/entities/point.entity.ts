@@ -29,7 +29,7 @@ export class PointEntity {
     coords: GeoJSON.Point;
     @CreateDateColumn()
     createdAt: Date;
-    @ManyToOne(() => Category, (category) => category.points, { nullable: true })
+    @ManyToOne(() => Category, (category) => category.points, { nullable: true, onDelete: 'SET NULL' })
     category: Category;
     @ManyToOne(() => Container, (container) => container.points, { nullable: true, onDelete: 'SET NULL' })
     container: Container;

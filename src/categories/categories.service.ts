@@ -45,10 +45,13 @@ export class CategoriesService {
         if (!category) {
             throw new NotFoundException('Вы не можете удалить эту категорию');
         }
-        if (category.points && category.points.length > 0) {
-            throw new BadRequestException(`Невозможно удалить категорию. Она используется в ${category.points.length} точках. Сначала удалите или измените категорию этих точек.`);
-        }
-        return await this.categoryRepository.remove(category);
+        const pointsCount = category.points?.length || 0;
+        await this.categoryRepository.remove(category);
+        return {
+            message: pointsCount > 0
+                ? `Категория успешно удалена. ${pointsCount} точек теперь без категории`
+                : 'Категория успешно удалена'
+        };
     }
     async findAll(userId: number) {
         return await this.categoryRepository.find({
